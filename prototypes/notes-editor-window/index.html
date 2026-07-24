@@ -1,0 +1,227 @@
+<!--
+  PROTOTYPE — throwaway. Answers wayfinder ticket #6 "Prototype: notes editor capability"
+  (https://github.com/alexfrankcodes/reflect/issues/6).
+
+  Three variants of the Reflect notes window, switchable via ?variant=, as a standalone
+  prototype page — there's no real app scaffold yet to embed this in (Tauri project doesn't
+  exist yet), so this is a static HTML/CSS/JS stand-in for what the Tauri webview content
+  would show. The real OS window chrome (title bar, traffic lights / min-max-close) sits
+  OUTSIDE what this mockup controls — only the content area below that chrome is prototyped.
+
+  Run: open this file directly in a browser, or `python -m http.server` from this folder.
+  Variants: ?variant=A (Blank Canvas) | ?variant=B (Toolbar & Markdown-lite) | ?variant=C (Prompt-First Card)
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Reflect — notes window prototype</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: #2b2b2e;
+  }
+  body {
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* Simulated app window — represents the Tauri webview content area only */
+  #window {
+    width: 480px; height: 380px;
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.45);
+    overflow: hidden;
+    position: relative;
+    display: flex; flex-direction: column;
+  }
+  .fake-titlebar-note {
+    position: absolute; top: -28px; left: 0; right: 0;
+    text-align: center; color: #999; font-size: 11px;
+  }
+
+  /* ---------- Variant A: Blank Canvas ---------- */
+  .variant-a { flex: 1; display: flex; flex-direction: column; padding: 28px 30px; background: #fdfcf9; }
+  .variant-a .prompt { font-style: italic; color: #9a958a; font-size: 13px; margin-bottom: 14px; }
+  .variant-a textarea {
+    flex: 1; border: none; outline: none; resize: none; background: transparent;
+    font-size: 15px; line-height: 1.6; color: #2c2a26; font-family: Georgia, "Times New Roman", serif;
+  }
+  .variant-a .close-x {
+    position: absolute; top: 10px; right: 14px; color: #ccc; font-size: 14px; cursor: default;
+  }
+
+  /* ---------- Variant B: Toolbar & Markdown-lite ---------- */
+  .variant-b { flex: 1; display: flex; flex-direction: column; background: #fff; }
+  .variant-b .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px; border-bottom: 1px solid #eee; font-size: 12px; color: #888;
+  }
+  .variant-b .fmt-icons { display: flex; gap: 8px; color: #aaa; font-size: 12px; }
+  .variant-b .fmt-icons span { border: 1px solid #ddd; border-radius: 4px; padding: 1px 6px; }
+  .variant-b .prompt-pill {
+    margin: 12px 14px 0; background: #eef2ff; color: #3f4a8a; font-size: 12.5px;
+    padding: 7px 12px; border-radius: 7px; display: inline-block; align-self: flex-start;
+  }
+  .variant-b .preview-toggle {
+    margin-left: auto; font-size: 11px; color: #5566cc; cursor: pointer; user-select: none;
+  }
+  .variant-b textarea, .variant-b .preview {
+    flex: 1; margin: 12px 14px 16px; border: none; outline: none; resize: none;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 13.5px; line-height: 1.7; color: #24292e;
+  }
+  .variant-b .preview { overflow-y: auto; display: none; font-family: inherit; }
+  .variant-b .preview.active { display: block; }
+  .variant-b textarea.hidden { display: none; }
+
+  /* ---------- Variant C: Prompt-First Card ---------- */
+  .variant-c { flex: 1; display: flex; flex-direction: column; background: #faf7f2; padding: 26px 28px 20px; }
+  .variant-c .quote-mark { font-size: 34px; color: #d8cdbb; line-height: 1; margin-bottom: -6px; font-family: Georgia, serif; }
+  .variant-c .prompt-heading {
+    font-family: Georgia, "Times New Roman", serif; font-size: 17px; color: #4a4234;
+    margin-bottom: 16px; line-height: 1.4;
+  }
+  .variant-c .card {
+    flex: 1; background: #fff; border-radius: 8px; border: 1px solid #ece5d8;
+    padding: 16px 18px; display: flex; flex-direction: column;
+  }
+  .variant-c textarea {
+    flex: 1; border: none; outline: none; resize: none; font-size: 14.5px; line-height: 1.6;
+    color: #2c2a26; font-family: -apple-system, "Segoe UI", sans-serif;
+  }
+  .variant-c .footer-row {
+    display: flex; align-items: center; justify-content: space-between; margin-top: 14px;
+  }
+  .variant-c .word-count { font-size: 11.5px; color: #b3a894; }
+  .variant-c .done-btn {
+    background: #4a4234; color: #fff; border: none; border-radius: 20px;
+    font-size: 12.5px; padding: 7px 18px; cursor: pointer;
+  }
+
+  /* ---------- Floating switcher ---------- */
+  #switcher {
+    position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
+    background: #111; color: #fff; border-radius: 999px; padding: 8px 6px;
+    display: flex; align-items: center; gap: 4px; font-size: 13px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.35); z-index: 999; user-select: none;
+  }
+  #switcher button {
+    background: rgba(255,255,255,0.12); border: none; color: #fff; width: 28px; height: 28px;
+    border-radius: 50%; cursor: pointer; font-size: 14px; line-height: 1;
+  }
+  #switcher button:hover { background: rgba(255,255,255,0.22); }
+  #switcher .label { padding: 0 14px; white-space: nowrap; }
+</style>
+</head>
+<body>
+
+  <div id="window">
+    <div class="fake-titlebar-note">↑ real OS window chrome goes here (native, not prototyped)</div>
+
+    <div class="variant-a" data-variant="A" style="display:none;">
+      <span class="close-x">✕</span>
+      <div class="prompt">What's one thing you're grateful for today?</div>
+      <textarea placeholder="Start writing…" autofocus></textarea>
+    </div>
+
+    <div class="variant-b" data-variant="B" style="display:none;">
+      <div class="topbar">
+        <span>Tuesday, July 23</span>
+        <div class="fmt-icons"><span>B</span><span>I</span><span>•</span></div>
+        <span class="preview-toggle" onclick="toggleMdPreview()">Preview</span>
+      </div>
+      <div class="prompt-pill">Prompt: What's one thing you're grateful for today?</div>
+      <textarea id="bTextarea" placeholder="Start writing… (**bold**, *italic*, - list supported)"></textarea>
+      <div class="preview" id="bPreview"></div>
+    </div>
+
+    <div class="variant-c" data-variant="C" style="display:none;">
+      <div class="quote-mark">"</div>
+      <div class="prompt-heading">Today's reflection: What's one thing you're grateful for today?</div>
+      <div class="card">
+        <textarea id="cTextarea" placeholder="Write here…" oninput="updateWordCount()"></textarea>
+        <div class="footer-row">
+          <span class="word-count" id="wordCount">0 words</span>
+          <button class="done-btn">Done</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="switcher">
+    <button onclick="cycle(-1)">←</button>
+    <span class="label" id="switcherLabel"></span>
+    <button onclick="cycle(1)">→</button>
+  </div>
+
+  <script>
+    const VARIANTS = [
+      { key: 'A', name: 'Blank Canvas' },
+      { key: 'B', name: 'Toolbar & Markdown-lite' },
+      { key: 'C', name: 'Prompt-First Card' },
+    ];
+
+    function currentIndex() {
+      const params = new URLSearchParams(location.search);
+      const key = params.get('variant') || 'A';
+      const i = VARIANTS.findIndex(v => v.key === key);
+      return i === -1 ? 0 : i;
+    }
+
+    function render() {
+      const i = currentIndex();
+      document.querySelectorAll('#window > [data-variant]').forEach(el => {
+        el.style.display = (el.dataset.variant === VARIANTS[i].key) ? 'flex' : 'none';
+      });
+      document.getElementById('switcherLabel').textContent = `${VARIANTS[i].key} — ${VARIANTS[i].name}`;
+    }
+
+    function cycle(dir) {
+      const i = (currentIndex() + dir + VARIANTS.length) % VARIANTS.length;
+      const params = new URLSearchParams(location.search);
+      params.set('variant', VARIANTS[i].key);
+      history.replaceState(null, '', `?${params.toString()}`);
+      render();
+    }
+
+    document.addEventListener('keydown', (e) => {
+      const active = document.activeElement;
+      const typing = active && (active.tagName === 'TEXTAREA' || active.tagName === 'INPUT' || active.isContentEditable);
+      if (typing) return;
+      if (e.key === 'ArrowLeft') cycle(-1);
+      if (e.key === 'ArrowRight') cycle(1);
+    });
+
+    function toggleMdPreview() {
+      const ta = document.getElementById('bTextarea');
+      const pv = document.getElementById('bPreview');
+      const showingPreview = pv.classList.contains('active');
+      if (showingPreview) {
+        pv.classList.remove('active');
+        ta.classList.remove('hidden');
+      } else {
+        let html = ta.value
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+          .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+          .replace(/\*(.+?)\*/g, '<i>$1</i>')
+          .replace(/^- (.+)$/gm, '• $1')
+          .replace(/\n/g, '<br>');
+        pv.innerHTML = html || '<span style="color:#bbb">Nothing written yet.</span>';
+        pv.classList.add('active');
+        ta.classList.add('hidden');
+      }
+    }
+
+    function updateWordCount() {
+      const val = document.getElementById('cTextarea').value.trim();
+      const words = val ? val.split(/\s+/).length : 0;
+      document.getElementById('wordCount').textContent = `${words} word${words === 1 ? '' : 's'}`;
+    }
+
+    render();
+  </script>
+</body>
+</html>
