@@ -1,0 +1,9 @@
+# Rust / Cargo
+/target/
+
+# Tauri: capability schemas are generated at build time
+/src-tauri/gen/schemas/
+
+# OS
+.DS_Store
+Thumbs.db

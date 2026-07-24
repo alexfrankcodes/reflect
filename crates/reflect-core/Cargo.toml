@@ -1,0 +1,9 @@
+[package]
+name = "reflect-core"
+description = "Pure business logic for Reflect. Deliberately free of any Tauri, UI, or OS dependency."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]

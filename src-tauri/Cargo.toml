@@ -1,0 +1,18 @@
+[package]
+name = "reflect-app"
+description = "Reflect — a quiet daily nudge to write, living in your tray."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "reflect"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+reflect-core = { path = "../crates/reflect-core" }
+tauri = { version = "2", features = ["tray-icon"] }
