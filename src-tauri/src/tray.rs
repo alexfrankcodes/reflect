@@ -22,7 +22,7 @@ pub fn create<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     let icon = app
         .default_window_icon()
         .cloned()
-        .expect("bundle icon is configured in tauri.conf.json");
+        .expect("`bundle.icon` in tauri.conf.json must list at least one icon");
 
     // Deliberately not `.icon_as_template(true)`: macOS template images throw
     // away colour and tint the alpha mask, which would flatten the current
