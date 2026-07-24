@@ -74,12 +74,21 @@ pub fn quit<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         return Ok(());
     };
 
+    // The listener outlives a close the page refuses (a failed save keeps the
+    // window open and says so in the prompt line). That is deliberate: quit
+    // was asked for, so the app goes down as soon as the day's writing is
+    // safely on disk, whenever the user manages that.
     let app = app.clone();
     window.on_window_event(move |event| {
         if let tauri::WindowEvent::Destroyed = event {
             app.exit(0);
         }
     });
+
+    // Surfaced before it's asked to close, so that a window refusing to go —
+    // it having failed to save — is in front of the user rather than buried
+    // behind whatever they were doing when they hit Quit.
+    window.set_focus()?;
     window.close()?;
 
     Ok(())
