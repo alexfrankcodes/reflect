@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Reflect</title>
+    <!--
+      Styles and script are separate files rather than inline: the app's CSP
+      (`default-src 'self'` in tauri.conf.json) blocks inline <style> and
+      <script>, and no bundler runs over this folder to hoist them out.
+    -->
+    <link rel="stylesheet" href="notes.css" />
+  </head>
+  <body>
+    <p class="prompt" id="prompt"></p>
+    <textarea id="entry" placeholder="Start writing…"></textarea>
+    <script src="notes.js"></script>
+  </body>
+</html>

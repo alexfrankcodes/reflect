@@ -8,6 +8,10 @@
 /// Something the user can ask for from the tray menu.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TrayAction {
+    /// Temporary. Until #15 fires the daily notification and routes a click on
+    /// it to the notes window, this is the only way to reach that window —
+    /// and it goes away again when that lands.
+    WriteTodaysReflection,
     OpenSettings,
     BrowseEntries,
     RevealEntriesFolder,
@@ -16,7 +20,8 @@ pub enum TrayAction {
 
 impl TrayAction {
     /// Every action, in the order it appears in the menu.
-    pub const ALL: [TrayAction; 4] = [
+    pub const ALL: [TrayAction; 5] = [
+        TrayAction::WriteTodaysReflection,
         TrayAction::OpenSettings,
         TrayAction::BrowseEntries,
         TrayAction::RevealEntriesFolder,
@@ -26,6 +31,7 @@ impl TrayAction {
     /// Stable identifier handed to the OS menu and echoed back on click.
     pub fn id(self) -> &'static str {
         match self {
+            TrayAction::WriteTodaysReflection => "write-todays-reflection",
             TrayAction::OpenSettings => "open-settings",
             TrayAction::BrowseEntries => "browse-entries",
             TrayAction::RevealEntriesFolder => "reveal-entries-folder",
@@ -36,6 +42,7 @@ impl TrayAction {
     /// Text the user sees.
     pub fn label(self) -> &'static str {
         match self {
+            TrayAction::WriteTodaysReflection => "Write Today's Reflection",
             TrayAction::OpenSettings => "Settings…",
             TrayAction::BrowseEntries => "Browse Entries",
             TrayAction::RevealEntriesFolder => "Reveal Entries Folder",
@@ -56,7 +63,14 @@ mod tests {
 
     #[test]
     fn menu_reads_top_to_bottom_as_the_spec_describes_it() {
-        let labels: Vec<&str> = TrayAction::ALL.iter().map(|a| a.label()).collect();
+        // `WriteTodaysReflection` is excluded on purpose: it isn't part of the
+        // menu the spec describes, and leaves when #15 wires up the daily
+        // notification. Everything below it is the real, permanent menu.
+        let labels: Vec<&str> = TrayAction::ALL
+            .iter()
+            .filter(|action| **action != TrayAction::WriteTodaysReflection)
+            .map(|a| a.label())
+            .collect();
         assert_eq!(
             labels,
             vec![
@@ -65,6 +79,14 @@ mod tests {
                 "Reveal Entries Folder",
                 "Quit Reflect",
             ]
+        );
+    }
+
+    #[test]
+    fn the_stand_in_for_the_daily_notification_is_the_first_thing_in_the_menu() {
+        assert_eq!(
+            TrayAction::ALL.first(),
+            Some(&TrayAction::WriteTodaysReflection)
         );
     }
 

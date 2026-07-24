@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Baseline permissions for Reflect's windows.",
+  "description": "Baseline permissions for Reflect's windows. `core:window:allow-destroy` is what lets the notes page close its own window after it has saved the day's entry; `core:default` covers the rest, including listening for the close request in the first place.",
   "windows": ["*"],
-  "permissions": ["core:default"]
+  "permissions": ["core:default", "core:window:allow-destroy"]
 }

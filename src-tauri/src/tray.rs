@@ -41,6 +41,14 @@ pub fn create<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
 
 fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, event: tauri::menu::MenuEvent) {
     match TrayAction::from_id(event.id.as_ref()) {
+        Some(TrayAction::WriteTodaysReflection) => {
+            if let Err(err) = crate::notes::open(app) {
+                eprintln!("could not open the notes window: {err}");
+            }
+        }
+        // Known gap, left for #15/#16 to close: quitting with the notes window
+        // open takes the app down without the window's close handler ever
+        // running, so anything typed and not yet saved goes with it.
         Some(TrayAction::Quit) => app.exit(0),
         // Wired up by later tickets: Settings (#16), Browse Entries (#17),
         // Reveal Entries Folder (#18). Selecting them is a no-op for now.

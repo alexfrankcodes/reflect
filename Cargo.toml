@@ -7,3 +7,9 @@ version = "0.1.0"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/alexfrankcodes/reflect"
+
+[workspace.dependencies]
+# `clock` is deliberately off here: reading the wall clock is an OS concern, so
+# only the Tauri layer opts into it. The core does calendar arithmetic on dates
+# it is handed.
+chrono = { version = "0.4", default-features = false, features = ["std"] }

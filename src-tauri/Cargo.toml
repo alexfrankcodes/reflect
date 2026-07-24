@@ -15,4 +15,8 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 reflect-core = { path = "../crates/reflect-core" }
+# `clock` on top of the workspace default: reading today's date off the wall
+# clock is this layer's job, not the core's.
+chrono = { workspace = true, features = ["clock"] }
+serde = { version = "1", features = ["derive"] }
 tauri = { version = "2", features = ["tray-icon"] }
