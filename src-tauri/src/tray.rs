@@ -3,7 +3,7 @@
 //! The menu's shape lives in `reflect_core::tray_menu`; this module is the
 //! adapter that turns it into real OS menu items and back again.
 
-use reflect_core::tray_menu::{self, TrayAction};
+use reflect_core::tray_menu::TrayAction;
 use tauri::{
     menu::{IsMenuItem, Menu, MenuItem},
     tray::TrayIconBuilder,
@@ -11,9 +11,9 @@ use tauri::{
 };
 
 pub fn create<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
-    let items = tray_menu::entries()
+    let items = TrayAction::ALL
         .into_iter()
-        .map(|entry| MenuItem::with_id(app, entry.id, entry.label, true, None::<&str>))
+        .map(|action| MenuItem::with_id(app, action.id(), action.label(), true, None::<&str>))
         .collect::<tauri::Result<Vec<_>>>()?;
     let item_refs: Vec<&dyn IsMenuItem<R>> =
         items.iter().map(|i| i as &dyn IsMenuItem<R>).collect();
@@ -24,11 +24,12 @@ pub fn create<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         .cloned()
         .expect("bundle icon is configured in tauri.conf.json");
 
+    // Deliberately not `.icon_as_template(true)`: macOS template images throw
+    // away colour and tint the alpha mask, which would flatten the current
+    // full-colour icon into an undifferentiated silhouette. Turn it on once a
+    // purpose-drawn monochrome menu-bar asset exists.
     TrayIconBuilder::with_id("reflect")
         .icon(icon)
-        // On macOS a template image is recoloured by the system, so the icon
-        // stays legible in both light and dark menu bars.
-        .icon_as_template(true)
         .tooltip("Reflect")
         .menu(&menu)
         .show_menu_on_left_click(true)

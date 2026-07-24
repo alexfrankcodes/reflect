@@ -1,8 +1,8 @@
 //! The tray menu, modelled as data.
 //!
-//! The Tauri layer walks [`entries`] to build the real menu and routes the
-//! string id it gets back through [`TrayAction::from_id`]. Keeping the ids and
-//! labels here means a typo is a failing test rather than a menu item that
+//! The Tauri layer walks [`TrayAction::ALL`] to build the real menu and routes
+//! the string id it gets back through [`TrayAction::from_id`]. Keeping the ids
+//! and labels here means a typo is a failing test rather than a menu item that
 //! silently does nothing when clicked.
 
 /// Something the user can ask for from the tray menu.
@@ -14,16 +14,6 @@ pub enum TrayAction {
     Quit,
 }
 
-/// One row of the tray menu.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct TrayMenuEntry {
-    pub action: TrayAction,
-    /// Stable identifier handed to the OS menu and echoed back on click.
-    pub id: &'static str,
-    /// Text the user sees.
-    pub label: &'static str,
-}
-
 impl TrayAction {
     /// Every action, in the order it appears in the menu.
     pub const ALL: [TrayAction; 4] = [
@@ -33,6 +23,7 @@ impl TrayAction {
         TrayAction::Quit,
     ];
 
+    /// Stable identifier handed to the OS menu and echoed back on click.
     pub fn id(self) -> &'static str {
         match self {
             TrayAction::OpenSettings => "open-settings",
@@ -42,6 +33,7 @@ impl TrayAction {
         }
     }
 
+    /// Text the user sees.
     pub fn label(self) -> &'static str {
         match self {
             TrayAction::OpenSettings => "Settings…",
@@ -58,39 +50,13 @@ impl TrayAction {
     }
 }
 
-/// The tray menu, top to bottom.
-pub fn entries() -> Vec<TrayMenuEntry> {
-    TrayAction::ALL
-        .into_iter()
-        .map(|action| TrayMenuEntry {
-            action,
-            id: action.id(),
-            label: action.label(),
-        })
-        .collect()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn menu_lists_every_action_in_display_order() {
-        let actions: Vec<TrayAction> = entries().iter().map(|e| e.action).collect();
-        assert_eq!(
-            actions,
-            vec![
-                TrayAction::OpenSettings,
-                TrayAction::BrowseEntries,
-                TrayAction::RevealEntriesFolder,
-                TrayAction::Quit,
-            ]
-        );
-    }
-
-    #[test]
-    fn menu_labels_match_the_spec() {
-        let labels: Vec<&str> = entries().iter().map(|e| e.label).collect();
+    fn menu_reads_top_to_bottom_as_the_spec_describes_it() {
+        let labels: Vec<&str> = TrayAction::ALL.iter().map(|a| a.label()).collect();
         assert_eq!(
             labels,
             vec![
@@ -104,20 +70,20 @@ mod tests {
 
     #[test]
     fn every_menu_id_round_trips_back_to_its_action() {
-        for entry in entries() {
+        for action in TrayAction::ALL {
             assert_eq!(
-                TrayAction::from_id(entry.id),
-                Some(entry.action),
+                TrayAction::from_id(action.id()),
+                Some(action),
                 "id {:?} did not resolve back to {:?}",
-                entry.id,
-                entry.action
+                action.id(),
+                action
             );
         }
     }
 
     #[test]
     fn menu_ids_are_unique() {
-        let mut ids: Vec<&str> = entries().iter().map(|e| e.id).collect();
+        let mut ids: Vec<&str> = TrayAction::ALL.iter().map(|a| a.id()).collect();
         let total = ids.len();
         ids.sort_unstable();
         ids.dedup();
