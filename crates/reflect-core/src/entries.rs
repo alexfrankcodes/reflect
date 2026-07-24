@@ -14,7 +14,7 @@ pub struct Entries {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Saved {
     /// The file was created or rewritten.
-    Wrote(PathBuf),
+    Wrote,
     /// The day's file already said exactly this, so it was left untouched —
     /// reopening a finished day and closing it again shouldn't so much as
     /// disturb its timestamp.
@@ -28,11 +28,6 @@ impl Entries {
     /// Entries stored in `dir`. The folder needn't exist yet.
     pub fn in_dir(dir: impl Into<PathBuf>) -> Self {
         Self { dir: dir.into() }
-    }
-
-    /// Where the entries live, for the tray's "Reveal Entries Folder".
-    pub fn dir(&self) -> &Path {
-        &self.dir
     }
 
     /// Persist `content` as `date`'s entry: trimmed, newline-terminated, and
@@ -55,7 +50,7 @@ impl Entries {
 
         std::fs::create_dir_all(&self.dir)?;
         std::fs::write(&path, file_text)?;
-        Ok(Saved::Wrote(path))
+        Ok(Saved::Wrote)
     }
 
     /// What the user wrote on `date`, or `None` if they didn't.
@@ -83,10 +78,7 @@ fn read(path: &Path) -> io::Result<Option<String>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn day(year: i32, month: u32, day: u32) -> NaiveDate {
-        NaiveDate::from_ymd_opt(year, month, day).expect("test date must be a real date")
-    }
+    use crate::day;
 
     #[test]
     fn a_written_entry_lands_in_a_file_named_for_its_day() {

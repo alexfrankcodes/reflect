@@ -8,3 +8,9 @@ pub mod entries;
 pub mod notes;
 pub mod prompts;
 pub mod tray_menu;
+
+/// A calendar date, for tests that need one to talk about.
+#[cfg(test)]
+fn day(year: i32, month: u32, day: u32) -> chrono::NaiveDate {
+    chrono::NaiveDate::from_ymd_opt(year, month, day).expect("test date must be a real date")
+}

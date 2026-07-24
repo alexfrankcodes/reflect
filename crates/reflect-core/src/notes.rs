@@ -60,10 +60,7 @@ impl NotesSession {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn day(year: i32, month: u32, day: u32) -> NaiveDate {
-        NaiveDate::from_ymd_opt(year, month, day).expect("test date must be a real date")
-    }
+    use crate::day;
 
     #[test]
     fn a_fresh_day_opens_on_that_days_prompt_and_a_blank_page() {
@@ -86,7 +83,7 @@ mod tests {
             .close(&entries, "Walked the long way home.")
             .unwrap();
 
-        assert!(matches!(outcome, Saved::Wrote(_)));
+        assert_eq!(outcome, Saved::Wrote);
         assert_eq!(
             entries.load(day(2026, 7, 24)).unwrap().as_deref(),
             Some("Walked the long way home.")

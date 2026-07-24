@@ -52,10 +52,7 @@ pub fn prompt_for_date(date: NaiveDate) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn day(year: i32, month: u32, day: u32) -> NaiveDate {
-        NaiveDate::from_ymd_opt(year, month, day).expect("test date must be a real date")
-    }
+    use crate::day;
 
     #[test]
     fn reopening_the_window_later_the_same_day_shows_the_same_prompt() {

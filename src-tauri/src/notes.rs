@@ -65,6 +65,26 @@ pub fn open<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     Ok(())
 }
 
+/// Quit, but not out from under someone mid-sentence: if the notes window is
+/// open, ask it to close first — that runs the same save the close button does
+/// — and take the app down once it has gone.
+pub fn quit<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
+    let Some(window) = app.get_webview_window(WINDOW_LABEL) else {
+        app.exit(0);
+        return Ok(());
+    };
+
+    let app = app.clone();
+    window.on_window_event(move |event| {
+        if let tauri::WindowEvent::Destroyed = event {
+            app.exit(0);
+        }
+    });
+    window.close()?;
+
+    Ok(())
+}
+
 /// Today's page: its prompt, and whatever is already written on it.
 #[tauri::command]
 pub fn notes_page(notes: State<'_, Notes>) -> Result<Page, String> {

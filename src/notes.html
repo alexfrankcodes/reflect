@@ -6,8 +6,9 @@
     <title>Reflect</title>
     <!--
       Styles and script are separate files rather than inline: the app's CSP
-      (`default-src 'self'` in tauri.conf.json) blocks inline <style> and
-      <script>, and no bundler runs over this folder to hoist them out.
+      in tauri.conf.json allows scripts and styles from `self` only, which
+      rules out inline <style> and <script>, and no bundler runs over this
+      folder to hoist them out.
     -->
     <link rel="stylesheet" href="notes.css" />
   </head>

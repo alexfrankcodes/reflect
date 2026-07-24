@@ -63,30 +63,19 @@ mod tests {
 
     #[test]
     fn menu_reads_top_to_bottom_as_the_spec_describes_it() {
-        // `WriteTodaysReflection` is excluded on purpose: it isn't part of the
-        // menu the spec describes, and leaves when #15 wires up the daily
-        // notification. Everything below it is the real, permanent menu.
-        let labels: Vec<&str> = TrayAction::ALL
-            .iter()
-            .filter(|action| **action != TrayAction::WriteTodaysReflection)
-            .map(|a| a.label())
-            .collect();
+        // The first line is the temporary stand-in for the daily notification
+        // and goes when #15 lands — delete it from here at the same time, so
+        // every label a user can see stays spelled out in one place.
+        let labels: Vec<&str> = TrayAction::ALL.iter().map(|a| a.label()).collect();
         assert_eq!(
             labels,
             vec![
+                "Write Today's Reflection",
                 "Settings…",
                 "Browse Entries",
                 "Reveal Entries Folder",
                 "Quit Reflect",
             ]
-        );
-    }
-
-    #[test]
-    fn the_stand_in_for_the_daily_notification_is_the_first_thing_in_the_menu() {
-        assert_eq!(
-            TrayAction::ALL.first(),
-            Some(&TrayAction::WriteTodaysReflection)
         );
     }
 
