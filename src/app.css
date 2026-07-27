@@ -1,0 +1,42 @@
+/*
+  The canvas both of Reflect's windows are drawn on: a warm off-white page in
+  whatever the OS calls its UI font. Kept here rather than copied into each
+  page's stylesheet so the two windows can't drift into two shades of paper.
+*/
+
+:root {
+  /* Both windows ask for a light title bar, so the page inside must not
+     follow the OS into dark mode — left to itself, a form control would come
+     out dark on cream. */
+  color-scheme: light;
+
+  --paper: #fdfcf9;
+  --ink: #2c2a26;
+  /* For the prompt line and anything else that should be readable without
+     asking to be read. */
+  --quiet: #9a958a;
+  --faint: #c9c3b6;
+  --rule: #e6e1d5;
+  /* Trouble, said in the same warm register as the rest of the page rather
+     than in system red. */
+  --trouble: #a2493d;
+
+  --ui-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial,
+    sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--ui-font);
+}

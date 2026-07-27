@@ -6,12 +6,13 @@
 //! yes. The rule doing the answering is [`Schedule`], in the core, where it is
 //! tested against a clock that can be told what time it is.
 
-use std::path::PathBuf;
 use std::time::Duration;
 
 use chrono::Local;
-use reflect_core::schedule::{LastReminder, Reminder, Schedule, DEFAULT_DAILY_TIME};
-use tauri::{AppHandle, Runtime};
+use reflect_core::schedule::{Reminder, Schedule};
+use tauri::{AppHandle, Manager, Runtime};
+
+use crate::settings::Preferences;
 
 /// How often the question gets asked. Frequent enough that the reminder lands
 /// within a minute of the time the user set, and cheap enough that asking all
@@ -19,38 +20,39 @@ use tauri::{AppHandle, Runtime};
 const TICK: Duration = Duration::from_secs(30);
 
 /// Start watching for the daily reminder. Runs until the app exits.
-pub fn start<R: Runtime>(app: &AppHandle<R>, record_path: PathBuf) {
+///
+/// Requires [`Preferences`] to have been managed already — it holds both the
+/// settings this reads and the record it writes.
+pub fn start<R: Runtime>(app: &AppHandle<R>) {
     let app = app.clone();
     // Read from the config rather than written out again here: whose
     // notification this is, and the identity the installer registers, have to
     // be the same string.
     let app_id = app.config().identifier.clone();
 
-    std::thread::spawn(move || {
-        let schedule = Schedule::daily_at(DEFAULT_DAILY_TIME);
-        let record = LastReminder::at(record_path);
-
-        loop {
-            if let Err(err) = ask(&app, &app_id, &schedule, &record) {
-                // A tick that fails is not a reason to stop asking — the disk
-                // being busy this second says nothing about the next one.
-                eprintln!("could not check whether a reminder is due: {err}");
-            }
-            std::thread::sleep(TICK);
+    std::thread::spawn(move || loop {
+        if let Err(err) = ask(&app, &app_id) {
+            // A tick that fails is not a reason to stop asking — the disk
+            // being busy this second says nothing about the next one.
+            eprintln!("could not check whether a reminder is due: {err}");
         }
+        std::thread::sleep(TICK);
     });
 }
 
-fn ask<R: Runtime>(
-    app: &AppHandle<R>,
-    app_id: &str,
-    schedule: &Schedule,
-    record: &LastReminder,
-) -> Result<(), Box<dyn std::error::Error>> {
-    // Read from disk each time rather than held in memory, so that a record
-    // repaired on disk stays repaired.
+fn ask<R: Runtime>(app: &AppHandle<R>, app_id: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let preferences = app.state::<Preferences>();
+    // Held across the whole of read-decide-record. The Settings window is the
+    // other writer of this record, and a change to the daily time arriving
+    // halfway through this would be answered with the time it replaced.
+    let files = preferences.lock();
+
+    // Both read from disk each time rather than held in memory: a record
+    // repaired on disk stays repaired, and a daily time the user changed a
+    // minute ago is the one this tick asks about.
     let now = Local::now().naive_local();
-    let last_reminded = record.load_or_start(schedule, now)?;
+    let schedule = Schedule::daily_at(files.settings.load()?.daily_time);
+    let last_reminded = files.last_reminder.load_or_start(&schedule, now)?;
 
     let Reminder::Due { occurrence } = schedule.due(now, last_reminded) else {
         return Ok(());
@@ -76,6 +78,6 @@ fn ask<R: Runtime>(
 
     // The occurrence, not the moment it appeared: a catch-up shown on Tuesday
     // morning is still Monday evening's reminder.
-    record.record(occurrence)?;
+    files.last_reminder.record(occurrence)?;
     Ok(())
 }

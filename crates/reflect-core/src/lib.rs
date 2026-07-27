@@ -9,6 +9,7 @@ pub mod notes;
 pub mod notification;
 pub mod prompts;
 pub mod schedule;
+pub mod settings;
 pub mod tray_menu;
 
 /// Read a file Reflect may simply not have written yet.

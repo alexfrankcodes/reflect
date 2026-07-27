@@ -14,6 +14,8 @@ use reflect_core::notes::NotesSession;
 use serde::Serialize;
 use tauri::{AppHandle, Manager, Runtime, State, WebviewUrl, WebviewWindowBuilder};
 
+use crate::settings::Preferences;
+
 /// The one notes window there ever is.
 const WINDOW_LABEL: &str = "notes";
 
@@ -38,7 +40,9 @@ impl Notes {
 /// What the notes page shows when it opens.
 #[derive(Serialize)]
 pub struct Page {
-    prompt: String,
+    /// `None` where the user has turned prompts off — the page then draws no
+    /// prompt line at all rather than an empty one.
+    prompt: Option<String>,
     text: String,
 }
 
@@ -106,15 +110,26 @@ pub fn quit<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
 
 /// Today's page: its prompt, and whatever is already written on it.
 #[tauri::command]
-pub fn notes_page(notes: State<'_, Notes>) -> Result<Page, String> {
+pub fn notes_page(
+    notes: State<'_, Notes>,
+    preferences: State<'_, Preferences>,
+) -> Result<Page, String> {
+    // Read at open rather than held from startup, so that turning prompts off
+    // in Settings shows on the very next page rather than the next launch.
+    let settings = preferences
+        .lock()
+        .settings
+        .load()
+        .map_err(|err| format!("couldn't read your settings: {err}"))?;
+
     // Today is settled here rather than when the window was built, so a window
     // opened seconds before midnight belongs to the day its page was drawn for
     // — the same day the entry will be filed under when it closes.
-    let session = NotesSession::open(&notes.entries, Local::now().date_naive())
+    let session = NotesSession::open(&notes.entries, &settings, Local::now().date_naive())
         .map_err(|err| format!("couldn't read today's entry: {err}"))?;
 
     let page = Page {
-        prompt: session.prompt().to_owned(),
+        prompt: session.prompt().map(str::to_owned),
         text: session.opened_with().to_owned(),
     };
     *notes.open_session.lock().expect("notes session lock") = Some(session);

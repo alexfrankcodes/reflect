@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Settings</title>
+    <!--
+      Styles and script are separate files rather than inline: the app's CSP
+      in tauri.conf.json allows scripts and styles from `self` only, which
+      rules out inline <style> and <script>, and no bundler runs over this
+      folder to hoist them out.
+    -->
+    <link rel="stylesheet" href="app.css" />
+    <link rel="stylesheet" href="settings.css" />
+  </head>
+  <body>
+    <label class="setting">
+      <span>Daily reflection time</span>
+      <input type="time" id="daily-time" required />
+    </label>
+
+    <label class="setting">
+      <span>Writing prompts</span>
+      <input type="checkbox" id="show-prompts" />
+    </label>
+
+    <!-- What Reflect is actually going to do, in its own words. There is no
+         Save button to confirm a change, so this line is the confirmation. -->
+    <p class="note" id="note"></p>
+
+    <script src="settings.js"></script>
+  </body>
+</html>

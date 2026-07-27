@@ -4,6 +4,7 @@
 mod notes;
 mod notify;
 mod reminder;
+mod settings;
 mod tray;
 
 use tauri::Manager;
@@ -20,7 +21,9 @@ fn main() {
         .plugin(tauri_plugin_deep_link::init())
         .invoke_handler(tauri::generate_handler![
             notes::notes_page,
-            notes::notes_close
+            notes::notes_close,
+            settings::settings_page,
+            settings::settings_save
         ])
         .setup(|app| {
             // Reflect has no Dock presence on macOS — the menu bar item is the
@@ -35,6 +38,12 @@ fn main() {
             // `~/Library/Application Support/<identifier>/entries` on macOS.
             let data_dir = app.path().app_data_dir()?;
             app.manage(notes::Notes::with_entries_in(data_dir.join("entries")));
+            // Managed before the reminder thread starts, which reads both of
+            // the files it holds.
+            app.manage(settings::Preferences::new(
+                data_dir.join("settings.txt"),
+                data_dir.join("last-reminder.txt"),
+            ));
 
             use tauri_plugin_deep_link::DeepLinkExt;
 
@@ -65,7 +74,7 @@ fn main() {
             }
 
             tray::create(app.handle())?;
-            reminder::start(app.handle(), data_dir.join("last-reminder.txt"));
+            reminder::start(app.handle());
             Ok(())
         })
         .build(tauri::generate_context!())

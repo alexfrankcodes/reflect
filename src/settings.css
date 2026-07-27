@@ -1,0 +1,67 @@
+/*
+  The Settings window: two rows on the same cream page the notes window uses,
+  and a line at the foot saying what Reflect will now do. No Save button — a
+  change applies as it's made, so there is nothing to confirm.
+
+  The page underneath — paper colour, ink, UI font — comes from `app.css`.
+*/
+
+body {
+  display: flex;
+  flex-direction: column;
+  padding: 26px 30px;
+  font-size: 13px;
+}
+
+.setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  /* A row is a label wrapping its control, so the whole row is the hit
+     target — including the words, which is what makes the checkbox easy to
+     land on. */
+  cursor: default;
+  padding: 11px 0;
+}
+
+.setting + .setting {
+  border-top: 1px solid var(--rule);
+}
+
+input[type="time"] {
+  font: inherit;
+  padding: 4px 7px;
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+  background: #fff;
+  color: var(--ink);
+}
+
+input[type="time"]:focus-visible {
+  outline: 2px solid var(--quiet);
+  outline-offset: 1px;
+}
+
+input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  /* The tick, in the page's own register rather than the OS accent blue. */
+  accent-color: #6f6a5e;
+}
+
+.note {
+  /* Pushed to the foot of the window, away from the rows it describes. */
+  margin: auto 0 0;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--quiet);
+}
+
+/* A change that didn't take. Said plainly rather than in system red — this is
+   still the same quiet page. */
+.note.trouble {
+  font-style: normal;
+  color: var(--trouble);
+}
