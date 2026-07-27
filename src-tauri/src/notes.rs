@@ -14,7 +14,7 @@ use reflect_core::notes::NotesSession;
 use serde::Serialize;
 use tauri::{AppHandle, Manager, Runtime, State, WebviewUrl, WebviewWindowBuilder};
 
-use crate::settings::Preferences;
+use crate::preferences::Preferences;
 
 /// The one notes window there ever is.
 const WINDOW_LABEL: &str = "notes";

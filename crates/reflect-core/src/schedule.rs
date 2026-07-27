@@ -134,8 +134,8 @@ impl LastReminder {
         Ok(restarted_at)
     }
 
-    /// Treat every occurrence up to `now` as handled, for a `schedule` whose
-    /// daily time has just changed.
+    /// Bring the record into line with a daily time the user has just moved
+    /// `from` one time of day `to` another.
     ///
     /// Moving the time earlier invents occurrences in the past: set eight in
     /// the morning at ten o'clock and the day's eight has already gone by.
@@ -144,14 +144,29 @@ impl LastReminder {
     /// closed Settings — so it is marked as handled instead of fired.
     ///
     /// The record only ever moves forward here, so a nudge already delivered
-    /// under the old time stays delivered, and a time moved later in the day
-    /// leaves that evening's occurrence still to come.
+    /// under the old time stays delivered. A time moved later in the day
+    /// therefore leaves that evening's occurrence still to come, even where
+    /// one has already gone out today: a user who sets their reminder to nine
+    /// this morning has asked to be nudged at nine, and staying silent until
+    /// tomorrow would be the surprising answer.
     ///
-    /// Only for a time that actually changed. Run against the time already in
-    /// force, this would swallow exactly the catch-up the schedule exists to
-    /// deliver.
-    pub fn skip_past_occurrences(&self, schedule: &Schedule, now: NaiveDateTime) -> io::Result<()> {
-        let last_reminded = self.load_or_start(schedule, now)?;
+    /// A time that didn't actually move leaves the record untouched, which is
+    /// why this takes both times rather than trusting the caller to ask only
+    /// when it matters: skipping past occurrences under the time already in
+    /// force would swallow exactly the catch-up a machine asleep at the hour
+    /// is owed.
+    pub fn follow_time_change(
+        &self,
+        from: NaiveTime,
+        to: NaiveTime,
+        now: NaiveDateTime,
+    ) -> io::Result<()> {
+        if from == to {
+            return Ok(());
+        }
+
+        let schedule = Schedule::daily_at(to);
+        let last_reminded = self.load_or_start(&schedule, now)?;
         let current = schedule.occurrence_on_or_before(now);
         if current > last_reminded {
             self.record(current)?;
@@ -404,7 +419,9 @@ mod tests {
         let moved = Schedule::daily_at(EIGHT_AM);
         let morning = on(25, 10, 0);
 
-        record.skip_past_occurrences(&moved, morning).unwrap();
+        record
+            .follow_time_change(NINE_PM, EIGHT_AM, morning)
+            .unwrap();
 
         let last_reminded = record.load_or_start(&moved, morning).unwrap();
         assert_eq!(moved.due(morning, last_reminded), Reminder::NotDue);
@@ -429,7 +446,9 @@ mod tests {
         let moved = Schedule::daily_at(NINE_PM);
         let morning = on(25, 10, 0);
 
-        record.skip_past_occurrences(&moved, morning).unwrap();
+        record
+            .follow_time_change(EIGHT_AM, NINE_PM, morning)
+            .unwrap();
 
         let last_reminded = record.load_or_start(&moved, morning).unwrap();
         assert_eq!(last_reminded, on(25, 8, 0));
@@ -442,10 +461,11 @@ mod tests {
     }
 
     #[test]
-    fn skipping_past_occurrences_against_an_unchanged_time_would_swallow_a_catch_up() {
-        // Not a behaviour anyone wants — it is why the Settings window calls
-        // `skip_past_occurrences` only when the daily time actually moved.
-        // Pinned here so the reason survives the guard.
+    fn settling_for_the_time_already_in_force_leaves_a_catch_up_still_owed() {
+        // Saving Settings without touching the time — turning prompts off, say
+        // — must not cost the user a nudge. Skipping past occurrences under the
+        // time already in force would swallow exactly the catch-up a machine
+        // asleep at the hour is owed, so an unchanged time changes nothing.
         let home = tempfile::tempdir().unwrap();
         let record = LastReminder::at(home.path().join("last-reminder.txt"));
         record.record(on(23, 21, 0)).unwrap();
@@ -453,10 +473,15 @@ mod tests {
         // Asleep through last night's nine o'clock, woken at midday.
         let midday = on(25, 12, 0);
 
-        record.skip_past_occurrences(&schedule, midday).unwrap();
+        record.follow_time_change(NINE_PM, NINE_PM, midday).unwrap();
 
         let last_reminded = record.load_or_start(&schedule, midday).unwrap();
-        assert_eq!(schedule.due(midday, last_reminded), Reminder::NotDue);
+        assert_eq!(
+            schedule.due(midday, last_reminded),
+            Reminder::Due {
+                occurrence: on(24, 21, 0)
+            }
+        );
     }
 
     #[test]

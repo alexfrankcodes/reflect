@@ -70,11 +70,21 @@ impl SettingsFile {
             &self.path,
             format!(
                 "{DAILY_TIME_KEY} = {}\n{SHOW_PROMPTS_KEY} = {}\n",
-                settings.daily_time.format(TIME_FORMAT),
+                format_daily_time(settings.daily_time),
                 if settings.show_prompts { "on" } else { "off" },
             ),
         )
     }
+}
+
+/// Write a time of day the way Reflect writes it — in the settings file, and
+/// in the box the Settings window shows it in.
+///
+/// The counterpart to [`parse_daily_time`], and here beside it so the two
+/// can't drift: a caller that spells the format out again is one release away
+/// from writing a time Reflect can no longer read back.
+pub fn format_daily_time(daily_time: NaiveTime) -> String {
+    daily_time.format(TIME_FORMAT).to_string()
 }
 
 /// Read a time of day as Reflect writes it, and as `<input type="time">` hands
@@ -239,6 +249,15 @@ mod tests {
 
         assert_eq!(settings.daily_time, time(7, 30));
         assert!(!settings.show_prompts);
+    }
+
+    #[test]
+    fn a_time_written_out_reads_back_as_the_same_time() {
+        assert_eq!(format_daily_time(time(7, 30)), "07:30");
+        assert_eq!(
+            parse_daily_time(&format_daily_time(time(7, 30))),
+            Some(time(7, 30))
+        );
     }
 
     #[test]

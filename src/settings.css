@@ -11,6 +11,10 @@ body {
   flex-direction: column;
   padding: 26px 30px;
   font-size: 13px;
+  /* The window is fixed at the height of its content, so a message longer
+     than the line it usually occupies — a filesystem error, say — would
+     otherwise be pushed out of sight with no way to reach it. */
+  overflow-y: auto;
 }
 
 .setting {
@@ -18,11 +22,11 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  /* A row is a label wrapping its control, so the whole row is the hit
-     target — including the words, which is what makes the checkbox easy to
-     land on. */
-  cursor: default;
   padding: 11px 0;
+  /* Each row is a <label> wrapping its control, so the whole row is the hit
+     target — the words included, which is what makes the checkbox easy to
+     land on. An arrow rather than a text caret says so. */
+  cursor: default;
 }
 
 .setting + .setting {
@@ -34,7 +38,7 @@ input[type="time"] {
   padding: 4px 7px;
   border: 1px solid var(--rule);
   border-radius: 5px;
-  background: #fff;
+  background: var(--field);
   color: var(--ink);
 }
 
@@ -48,7 +52,7 @@ input[type="checkbox"] {
   height: 15px;
   margin: 0;
   /* The tick, in the page's own register rather than the OS accent blue. */
-  accent-color: #6f6a5e;
+  accent-color: var(--accent);
 }
 
 .note {

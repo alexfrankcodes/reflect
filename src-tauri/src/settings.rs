@@ -5,55 +5,15 @@
 //! live in `reflect_core::settings` and `reflect_core::schedule`. This module
 //! opens a window, reads the file, and writes it back.
 
-use std::path::PathBuf;
-use std::sync::{Mutex, MutexGuard};
-
 use chrono::Local;
-use reflect_core::schedule::{LastReminder, Schedule};
-use reflect_core::settings::{parse_daily_time, Settings, SettingsFile};
+use reflect_core::settings::{format_daily_time, parse_daily_time, Settings};
 use serde::Serialize;
 use tauri::{AppHandle, Manager, Runtime, State, WebviewUrl, WebviewWindowBuilder};
 
+use crate::preferences::Preferences;
+
 /// The one settings window there ever is.
 const WINDOW_LABEL: &str = "settings";
-
-/// The two files that between them decide when Reflect nudges — the settings
-/// the user set, and the record of the last nudge — behind a single lock.
-///
-/// Locked together because they are read and written together, by two threads
-/// that disagree about the answer. The reminder thread reads the settings,
-/// decides whether a nudge is owed, and records it; the Settings window writes
-/// the settings and then corrects the record for the new time. Interleave those
-/// two and a tick still holding the old time can fire the very reminder the
-/// user's change was meant to move — and then record over the correction, so
-/// that changing the time is what produces a notification a second later.
-pub struct Preferences {
-    files: Mutex<Files>,
-}
-
-/// The settings and the reminder record, only reachable together. See
-/// [`Preferences`].
-pub struct Files {
-    pub settings: SettingsFile,
-    pub last_reminder: LastReminder,
-}
-
-impl Preferences {
-    pub fn new(settings_path: PathBuf, last_reminder_path: PathBuf) -> Self {
-        Self {
-            files: Mutex::new(Files {
-                settings: SettingsFile::at(settings_path),
-                last_reminder: LastReminder::at(last_reminder_path),
-            }),
-        }
-    }
-
-    /// Both files, held exclusively until the guard is dropped. Hold it across
-    /// the whole of a read-decide-write, not just the read.
-    pub fn lock(&self) -> MutexGuard<'_, Files> {
-        self.files.lock().expect("preferences lock")
-    }
-}
 
 /// What the settings page shows when it opens.
 #[derive(Serialize)]
@@ -107,10 +67,7 @@ pub fn settings_page(preferences: State<'_, Preferences>) -> Result<Page, String
         .load()
         .map_err(|err| format!("couldn't read your settings: {err}"))?;
 
-    Ok(Page {
-        daily_time: settings.daily_time.format("%H:%M").to_string(),
-        show_prompts: settings.show_prompts,
-    })
+    Ok(page(&settings))
 }
 
 /// Put `daily_time` and `show_prompts` into force.
@@ -118,6 +75,12 @@ pub fn settings_page(preferences: State<'_, Preferences>) -> Result<Page, String
 /// Returning an error leaves the settings as they were and says so on the page,
 /// which is the only honest outcome for a change that didn't take: a Settings
 /// window showing a time Reflect isn't using is worse than no Settings window.
+/// That is why the reminder record is corrected first and the settings written
+/// second — the other order can fail with the new time already in force and its
+/// record uncorrected, which is the one arrangement that produces a nudge the
+/// moment the user closes Settings. A correction that lands and a write that
+/// then fails costs at most a single day's nudge, and this codebase already
+/// holds that a missed reminder beats two almost back to back.
 #[tauri::command]
 pub fn settings_save(
     preferences: State<'_, Preferences>,
@@ -140,28 +103,30 @@ pub fn settings_save(
         .load()
         .map_err(|err| format!("couldn't read your settings: {err}"))?;
 
+    // A time that hasn't moved leaves the record alone, which is the whole of
+    // why both times are handed over rather than only the new one.
+    files
+        .last_reminder
+        .follow_time_change(
+            in_force.daily_time,
+            chosen.daily_time,
+            Local::now().naive_local(),
+        )
+        .map_err(|err| format!("couldn't reschedule your reminder: {err}"))?;
+
     files
         .settings
         .save(&chosen)
         .map_err(|err| format!("couldn't save your settings: {err}"))?;
 
-    // Only on a time that actually moved. Run on every save, this would swallow
-    // a reminder still owed from a machine that was asleep at the hour — so
-    // merely toggling prompts would cost the user that day's nudge.
-    if chosen.daily_time != in_force.daily_time {
-        files
-            .last_reminder
-            .skip_past_occurrences(
-                &Schedule::daily_at(chosen.daily_time),
-                Local::now().naive_local(),
-            )
-            .map_err(|err| format!("couldn't reschedule your reminder: {err}"))?;
-    }
-
     // Handed back rather than assumed: the page then shows what Reflect is
     // actually going to do, spelled the way Reflect spells it.
-    Ok(Page {
-        daily_time: chosen.daily_time.format("%H:%M").to_string(),
-        show_prompts: chosen.show_prompts,
-    })
+    Ok(page(&chosen))
+}
+
+fn page(settings: &Settings) -> Page {
+    Page {
+        daily_time: format_daily_time(settings.daily_time),
+        show_prompts: settings.show_prompts,
+    }
 }

@@ -3,6 +3,7 @@
 
 mod notes;
 mod notify;
+mod preferences;
 mod reminder;
 mod settings;
 mod tray;
@@ -40,7 +41,7 @@ fn main() {
             app.manage(notes::Notes::with_entries_in(data_dir.join("entries")));
             // Managed before the reminder thread starts, which reads both of
             // the files it holds.
-            app.manage(settings::Preferences::new(
+            app.manage(preferences::Preferences::new(
                 data_dir.join("settings.txt"),
                 data_dir.join("last-reminder.txt"),
             ));

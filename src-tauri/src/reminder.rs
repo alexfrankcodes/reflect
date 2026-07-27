@@ -12,7 +12,7 @@ use chrono::Local;
 use reflect_core::schedule::{Reminder, Schedule};
 use tauri::{AppHandle, Manager, Runtime};
 
-use crate::settings::Preferences;
+use crate::preferences::Preferences;
 
 /// How often the question gets asked. Frequent enough that the reminder lands
 /// within a minute of the time the user set, and cheap enough that asking all
