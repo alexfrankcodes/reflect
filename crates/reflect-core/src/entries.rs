@@ -1,9 +1,11 @@
 //! Reflect's storage: one plain-text file per calendar day.
 
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use chrono::NaiveDate;
+
+use crate::read_if_written;
 
 /// The folder holding one `YYYY-MM-DD.txt` per day the user wrote something.
 pub struct Entries {
@@ -44,7 +46,7 @@ impl Entries {
 
         let file_text = format!("{content}\n");
         let path = self.path_for(date);
-        if read(&path)?.as_deref() == Some(file_text.as_str()) {
+        if read_if_written(&path)?.as_deref() == Some(file_text.as_str()) {
             return Ok(Saved::Unchanged);
         }
 
@@ -58,7 +60,7 @@ impl Entries {
         // Trimmed rather than raw, so a file someone re-saved from Notepad
         // (CRLF, stray blank line at the end) still comes back the way it
         // would have from Reflect itself.
-        Ok(read(&self.path_for(date))?.map(|text| text.trim_end().to_owned()))
+        Ok(read_if_written(&self.path_for(date))?.map(|text| text.trim_end().to_owned()))
     }
 
     fn path_for(&self, date: NaiveDate) -> PathBuf {
@@ -66,17 +68,10 @@ impl Entries {
     }
 }
 
-/// A day with no file isn't an error — it's a day the user didn't write on.
-fn read(path: &Path) -> io::Result<Option<String>> {
-    match std::fs::read_to_string(path) {
-        Ok(text) => Ok(Some(text)),
-        Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(None),
-        Err(err) => Err(err),
-    }
-}
-
 #[cfg(test)]
 mod tests {
+    use std::path::Path;
+
     use super::*;
     use crate::day;
 

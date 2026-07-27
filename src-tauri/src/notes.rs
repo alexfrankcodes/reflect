@@ -42,6 +42,16 @@ pub struct Page {
     text: String,
 }
 
+/// [`open`], for the callers who have nowhere useful to report a failure to —
+/// a clicked notification, a tray menu item, a second launch. There is nothing
+/// to tell the user that a window they asked for didn't appear, beyond the
+/// window not appearing.
+pub fn open_or_report<R: Runtime>(app: &AppHandle<R>) {
+    if let Err(err) = open(app) {
+        eprintln!("could not open the notes window: {err}");
+    }
+}
+
 /// Open the notes window on today's page, or bring it forward if it's already
 /// open — a second click shouldn't mean a second window over the same day.
 pub fn open<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {

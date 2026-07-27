@@ -143,10 +143,8 @@ impl LastReminder {
     }
 
     fn read(&self) -> io::Result<Option<NaiveDateTime>> {
-        let text = match std::fs::read_to_string(&self.path) {
-            Ok(text) => text,
-            Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(None),
-            Err(err) => return Err(err),
+        let Some(text) = crate::read_if_written(&self.path)? else {
+            return Ok(None);
         };
         Ok(NaiveDateTime::parse_from_str(text.trim(), TIMESTAMP).ok())
     }

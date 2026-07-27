@@ -21,13 +21,17 @@ const TICK: Duration = Duration::from_secs(30);
 /// Start watching for the daily reminder. Runs until the app exits.
 pub fn start<R: Runtime>(app: &AppHandle<R>, record_path: PathBuf) {
     let app = app.clone();
+    // Read from the config rather than written out again here: whose
+    // notification this is, and the identity the installer registers, have to
+    // be the same string.
+    let app_id = app.config().identifier.clone();
 
     std::thread::spawn(move || {
         let schedule = Schedule::daily_at(DEFAULT_DAILY_TIME);
         let record = LastReminder::at(record_path);
 
         loop {
-            if let Err(err) = ask(&app, &schedule, &record) {
+            if let Err(err) = ask(&app, &app_id, &schedule, &record) {
                 // A tick that fails is not a reason to stop asking — the disk
                 // being busy this second says nothing about the next one.
                 eprintln!("could not check whether a reminder is due: {err}");
@@ -39,6 +43,7 @@ pub fn start<R: Runtime>(app: &AppHandle<R>, record_path: PathBuf) {
 
 fn ask<R: Runtime>(
     app: &AppHandle<R>,
+    app_id: &str,
     schedule: &Schedule,
     record: &LastReminder,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -52,15 +57,14 @@ fn ask<R: Runtime>(
         return Ok(());
     };
 
-    // Shown first, recorded second. A notification that failed to appear is
-    // owed again on the next tick; recorded first, it would be silently marked
-    // delivered and the day lost.
+    // Handed to the OS first, recorded second, so that a reminder Reflect
+    // never managed to hand over is still owed on the next tick. Only that
+    // much is guaranteed: both platforms can accept a notification and then
+    // decline to show it — Windows silently drops a toast whose app id it
+    // can't resolve — and neither tells us. What is recorded is that Reflect
+    // asked for the nudge, which is the most it ever knows.
     let app = app.clone();
-    crate::notify::daily_reminder(move || {
-        if let Err(err) = crate::notes::open(&app) {
-            eprintln!("could not open the notes window: {err}");
-        }
-    })?;
+    crate::notify::daily_reminder(app_id, move || crate::notes::open_or_report(&app))?;
 
     // The occurrence, not the moment it appeared: a catch-up shown on Tuesday
     // morning is still Monday evening's reminder.

@@ -21,36 +21,48 @@
 //! single-instance plugin hands it to the copy of Reflect already running.
 //! That is what `main.rs` listens for.
 //!
-//! macOS has no such problem — the click comes back in-process, as the return
-//! value of the call that showed the notification.
+//! # Why the old API on macOS
+//!
+//! The spec named `UNUserNotificationCenter`, which is indeed the modern way.
+//! It also refuses to deliver anything from a bundle that isn't code-signed,
+//! which would make the daily reminder — the whole point of Reflect — depend
+//! on a paid developer certificate before it would work at all, including for
+//! anyone who cloned the repo and built it themselves. `NSUserNotification`
+//! underneath `mac-notification-sys` is deprecated and asks for none of that,
+//! and hands the click straight back in-process. Worth revisiting if signing
+//! becomes part of the release anyway.
 
 use std::error::Error;
 
-/// What the notification says. Deliberately not the day's writing prompt: the
-/// prompt belongs on the page, and a user who has turned prompts off shouldn't
-/// meet one on the lock screen anyway.
-const TITLE: &str = "Reflect";
-const BODY: &str = "Time to write today's reflection.";
+use reflect_core::notification::{REMINDER_BODY, REMINDER_TITLE};
 
 /// The link a clicked reminder opens. Registered as a URI scheme so that
 /// Windows has somewhere to send the click; see the module docs.
-pub const LAUNCH_URL: &str = "reflect://write";
+#[cfg_attr(not(windows), allow(dead_code))]
+const LAUNCH_URL: &str = "reflect://write";
 
 /// Show today's reminder.
 ///
-/// Returns as soon as it is on screen — never blocks waiting to see what the
-/// user does with it, because the caller is the scheduler thread and a
+/// Returns as soon as the OS has taken it — never blocks waiting to see what
+/// the user does with it, because the caller is the scheduler thread and a
 /// reminder ignored for six hours must not stop it asking again tomorrow.
+///
+/// `app_id` is the bundle identifier from `tauri.conf.json`. Both platforms
+/// need it to say whose notification this is; neither will use Reflect's own
+/// name without it.
 ///
 /// `on_click` runs later, on an unspecified thread, if the user opens the
 /// notification. On Windows it is never called: the click arrives as the deep
 /// link described above instead, which `main.rs` routes to the same place.
-pub fn daily_reminder(on_click: impl Fn() + Send + 'static) -> Result<(), Box<dyn Error>> {
-    show(on_click)
+pub fn daily_reminder(
+    app_id: &str,
+    on_click: impl Fn() + Send + 'static,
+) -> Result<(), Box<dyn Error>> {
+    show(app_id, on_click)
 }
 
 #[cfg(windows)]
-fn show(on_click: impl Fn() + Send + 'static) -> Result<(), Box<dyn Error>> {
+fn show(app_id: &str, on_click: impl Fn() + Send + 'static) -> Result<(), Box<dyn Error>> {
     use windows::core::HSTRING;
     use windows::Data::Xml::Dom::XmlDocument;
     use windows::UI::Notifications::{ToastNotification, ToastNotificationManager};
@@ -69,12 +81,12 @@ fn show(on_click: impl Fn() + Send + 'static) -> Result<(), Box<dyn Error>> {
              </visual>
            </toast>"#,
         launch = LAUNCH_URL,
-        title = TITLE,
-        body = BODY,
+        title = REMINDER_TITLE,
+        body = REMINDER_BODY,
     )))?;
 
     let toast = ToastNotification::CreateToastNotification(&xml)?;
-    ToastNotificationManager::CreateToastNotifierWithId(&HSTRING::from(app_user_model_id()))?
+    ToastNotificationManager::CreateToastNotifierWithId(&HSTRING::from(app_user_model_id(app_id)))?
         .Show(&toast)?;
     Ok(())
 }
@@ -88,27 +100,38 @@ fn show(on_click: impl Fn() + Send + 'static) -> Result<(), Box<dyn Error>> {
 /// a toast can be seen at all; it shows up attributed to PowerShell, and is
 /// not what ships.
 #[cfg(windows)]
-fn app_user_model_id() -> &'static str {
+fn app_user_model_id(app_id: &str) -> String {
     if cfg!(debug_assertions) {
-        r"{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe"
+        r"{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe".to_owned()
     } else {
-        "com.alexfrankcodes.reflect"
+        app_id.to_owned()
     }
 }
 
 #[cfg(target_os = "macos")]
-fn show(on_click: impl Fn() + Send + 'static) -> Result<(), Box<dyn Error>> {
-    use mac_notification_sys::{send_notification, NotificationResponse};
+fn show(app_id: &str, on_click: impl Fn() + Send + 'static) -> Result<(), Box<dyn Error>> {
+    use mac_notification_sys::{send_notification, set_application, NotificationResponse};
+
+    // Without this the notification goes out under whatever bundle the crate
+    // falls back to — Finder's — so it would arrive wearing the wrong name and
+    // obey Finder's notification settings rather than Reflect's. It sticks for
+    // the life of the process and refuses a second call, which is why a repeat
+    // isn't treated as a failure.
+    let _ = set_application(app_id);
 
     // `send_notification` doesn't return until the user has done something
     // with the notification, so it can't be called on the scheduler thread.
     // This thread exists only to wait on one notification and then end.
-    std::thread::spawn(move || match send_notification(TITLE, None, BODY, None) {
-        Ok(NotificationResponse::Click) => on_click(),
-        // Dismissed, or left alone until it went away on its own: the day is
-        // skipped, and Reflect says nothing more about it.
-        Ok(_) => {}
-        Err(err) => eprintln!("could not show the daily reminder: {err}"),
+    std::thread::spawn(move || {
+        match send_notification(REMINDER_TITLE, None, REMINDER_BODY, None) {
+            Ok(NotificationResponse::Click) => on_click(),
+            // Dismissed, or left alone until the banner slid away: the day is
+            // skipped and Reflect says nothing more about it. A banner that times
+            // out reports the same as one dismissed, so opening it from
+            // Notification Center later isn't heard — the tray is the way back in.
+            Ok(_) => {}
+            Err(err) => eprintln!("could not show the daily reminder: {err}"),
+        }
     });
 
     Ok(())

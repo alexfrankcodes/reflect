@@ -41,11 +41,7 @@ pub fn create<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
 
 fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, event: tauri::menu::MenuEvent) {
     match TrayAction::from_id(event.id.as_ref()) {
-        Some(TrayAction::WriteTodaysReflection) => {
-            if let Err(err) = crate::notes::open(app) {
-                eprintln!("could not open the notes window: {err}");
-            }
-        }
+        Some(TrayAction::WriteTodaysReflection) => crate::notes::open_or_report(app),
         Some(TrayAction::Quit) => {
             if let Err(err) = crate::notes::quit(app) {
                 eprintln!("could not close the notes window before quitting: {err}");

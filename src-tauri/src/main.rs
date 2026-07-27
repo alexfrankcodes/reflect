@@ -8,13 +8,6 @@ mod tray;
 
 use tauri::Manager;
 
-/// Every way into the notes window that isn't the tray menu ends up here.
-fn open_notes<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
-    if let Err(err) = notes::open(app) {
-        eprintln!("could not open the notes window: {err}");
-    }
-}
-
 fn main() {
     tauri::Builder::default()
         // Registered first, as the plugin requires. A tray app must never run
@@ -22,7 +15,7 @@ fn main() {
         // starting Reflect again but Windows opening the `reflect://` link of
         // a clicked reminder, which belongs to the copy already running.
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-            open_notes(app);
+            notes::open_or_report(app);
         }))
         .plugin(tauri_plugin_deep_link::init())
         .invoke_handler(tauri::generate_handler![
@@ -48,7 +41,7 @@ fn main() {
             // The scheme is written into the registry by the installer, but a
             // `cargo run` was never installed — so ask for it at startup, and
             // a clicked reminder has somewhere to arrive in development too.
-            #[cfg(any(target_os = "windows", target_os = "linux"))]
+            #[cfg(windows)]
             if let Err(err) = app.deep_link().register_all() {
                 eprintln!("could not register the reflect:// link: {err}");
             }
@@ -57,8 +50,17 @@ fn main() {
             app.deep_link().on_open_url(move |_event| {
                 // The only link Reflect registers is the one its own reminder
                 // carries, so any arrival means the same thing.
-                open_notes(&handle);
+                notes::open_or_report(&handle);
             });
+
+            // A link that arrived on the command line got there before the
+            // listener above existed, and would otherwise be dropped: the
+            // reminder outlives a reboot in Windows' notification centre, so
+            // clicking it can be what starts Reflect rather than what reaches
+            // an already-running copy.
+            if matches!(app.deep_link().get_current(), Ok(Some(urls)) if !urls.is_empty()) {
+                notes::open_or_report(app.handle());
+            }
 
             tray::create(app.handle())?;
             reminder::start(app.handle(), data_dir.join("last-reminder.txt"));

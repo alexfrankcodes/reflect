@@ -6,9 +6,23 @@
 
 pub mod entries;
 pub mod notes;
+pub mod notification;
 pub mod prompts;
 pub mod schedule;
 pub mod tray_menu;
+
+/// Read a file Reflect may simply not have written yet.
+///
+/// Reflect's files are all optional in the same way — a day nobody wrote on,
+/// a reminder that has never gone out — so a missing one is an answer of
+/// `None`, never an error to handle.
+fn read_if_written(path: &std::path::Path) -> std::io::Result<Option<String>> {
+    match std::fs::read_to_string(path) {
+        Ok(text) => Ok(Some(text)),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(err) => Err(err),
+    }
+}
 
 /// A calendar date, for tests that need one to talk about.
 #[cfg(test)]
