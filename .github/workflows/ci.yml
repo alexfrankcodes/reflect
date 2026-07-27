@@ -1,0 +1,72 @@
+# Reflect is written on Windows but ships to two platforms, and every
+# `cfg(target_os = "macos")` branch in `src-tauri` was written without ever
+# being compiled — cross-checking isn't available either, because
+# `mac-notification-sys` builds Objective-C and so needs an Apple SDK. This
+# workflow buys the missing signal: the macOS branch is type-checked by a
+# machine that can actually see it.
+#
+# It buys compilation, not behaviour. Nothing here runs Reflect, so whether the
+# reminder actually appears on macOS — and whether clicking it opens the notes
+# window — stays unverified until someone runs the app on a Mac.
+
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+# Nothing here writes anything back to the repository.
+permissions:
+  contents: read
+
+# A second push to the same branch makes the first run's answer stale, so let
+# it go rather than queueing behind it.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    # Both platforms run the identical set of checks, as one matrix rather than
+    # two hand-written jobs, so that the two can't quietly drift apart — which
+    # is the whole failure this workflow exists to prevent.
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      # One platform failing shouldn't hide the other's answer: the interesting
+      # case is precisely "red here, green there".
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      # Caches the registry and `target/` both. A cold macOS build is minutes
+      # of Tauri and its dependencies; without this the job is slow enough that
+      # somebody eventually starts skipping it.
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Formatting
+        run: cargo fmt --all --check
+
+      # `--all-targets` is what reaches the `cfg` blocks in every target, not
+      # just the library. Clippy is a superset of `cargo check` — it type-checks
+      # everything `check` would and then lints it — so running both would only
+      # buy a second, separately-cached compile of the same code.
+      #
+      # `-D warnings` because a lint that doesn't fail the build isn't a gate,
+      # and a platform nobody can run is exactly where warnings would accrue
+      # unnoticed.
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Tests
+        run: cargo test --workspace
