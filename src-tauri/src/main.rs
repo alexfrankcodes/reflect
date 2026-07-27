@@ -38,9 +38,11 @@ fn main() {
 
             use tauri_plugin_deep_link::DeepLinkExt;
 
-            // The scheme is written into the registry by the installer, but a
-            // `cargo run` was never installed — so ask for it at startup, and
-            // a clicked reminder has somewhere to arrive in development too.
+            // The installer writes the scheme into the registry, but nothing
+            // guarantees Reflect was installed — a `cargo run`, or a binary
+            // carried around on its own, wasn't. Asking again costs nothing
+            // when it is already there, and is the difference between a
+            // clicked reminder arriving and vanishing when it isn't.
             #[cfg(windows)]
             if let Err(err) = app.deep_link().register_all() {
                 eprintln!("could not register the reflect:// link: {err}");

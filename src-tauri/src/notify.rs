@@ -21,6 +21,15 @@
 //! single-instance plugin hands it to the copy of Reflect already running.
 //! That is what `main.rs` listens for.
 //!
+//! One thing is still owed to the installer, though. A stub
+//! `ToastActivatorCLSID` — any GUID, with no COM server behind it — is what
+//! makes Windows keep a notification in the Action Centre after its banner
+//! has gone. Without one the reminder is live only while it is on screen, and
+//! a user who was away from the keyboard at nine can't come back and click it.
+//! Reflect's nudge is a single quiet moment in the day, so this is worth
+//! fixing when packaging is taken up; it needs a shell-link property the
+//! bundler doesn't currently write, not a change here.
+//!
 //! # Why the old API on macOS
 //!
 //! The spec named `UNUserNotificationCenter`, which is indeed the modern way.

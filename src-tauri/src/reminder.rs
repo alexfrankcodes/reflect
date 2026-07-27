@@ -64,7 +64,16 @@ fn ask<R: Runtime>(
     // can't resolve — and neither tells us. What is recorded is that Reflect
     // asked for the nudge, which is the most it ever knows.
     let app = app.clone();
-    crate::notify::daily_reminder(app_id, move || crate::notes::open_or_report(&app))?;
+    crate::notify::daily_reminder(app_id, move || {
+        // Onto the main thread before building a window. macOS hands the click
+        // back on a thread of its own, and AppKit refuses to make a window
+        // anywhere but the main one — quietly, which is the worst way to find
+        // out. Windows arrives here already on the main thread and is unharmed.
+        let opening = app.clone();
+        if let Err(err) = app.run_on_main_thread(move || crate::notes::open_or_report(&opening)) {
+            eprintln!("could not reach the main thread to open the notes window: {err}");
+        }
+    })?;
 
     // The occurrence, not the moment it appeared: a catch-up shown on Tuesday
     // morning is still Monday evening's reminder.
