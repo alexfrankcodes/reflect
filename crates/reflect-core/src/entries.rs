@@ -63,9 +63,57 @@ impl Entries {
         Ok(read_if_written(&self.path_for(date))?.map(|text| text.trim_end().to_owned()))
     }
 
-    fn path_for(&self, date: NaiveDate) -> PathBuf {
-        self.dir.join(format!("{}.txt", date.format("%Y-%m-%d")))
+    /// Every day the user has written on, most recent first — the order the
+    /// Browse window lists them in, and the only order it ever wants them in.
+    pub fn dates(&self) -> io::Result<Vec<NaiveDate>> {
+        // A folder that isn't there is the same answer as one holding nothing:
+        // it isn't made until the first save, so on a fresh install Browse is
+        // an empty list rather than a complaint about a missing folder.
+        let listing = match std::fs::read_dir(&self.dir) {
+            Ok(listing) => listing,
+            Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
+            Err(err) => return Err(err),
+        };
+
+        let mut dates: Vec<NaiveDate> = listing
+            .filter_map(Result::ok)
+            // A folder named like an entry is not one, and listing it would
+            // offer the user a day that fails the moment they click it.
+            .filter(|file| matches!(file.file_type(), Ok(kind) if kind.is_file()))
+            .filter_map(|file| entry_date(&file.file_name().to_string_lossy()))
+            .collect();
+
+        dates.sort_unstable_by(|a, b| b.cmp(a));
+        Ok(dates)
     }
+
+    fn path_for(&self, date: NaiveDate) -> PathBuf {
+        self.dir.join(format!("{}.txt", format_entry_date(date)))
+    }
+}
+
+/// How a date is written as an entry's file name.
+const DATE_FORMAT: &str = "%Y-%m-%d";
+
+/// Write a date the way Reflect names a file after it.
+///
+/// The counterpart to [`parse_entry_date`], and here beside it so the two can't
+/// drift: the Browse window hands a date back as this same string, and a caller
+/// that spells the format out again is one release away from asking for a day
+/// whose file it can no longer find.
+pub fn format_entry_date(date: NaiveDate) -> String {
+    date.format(DATE_FORMAT).to_string()
+}
+
+/// Read a date as Reflect writes it. `None` for anything else.
+pub fn parse_entry_date(text: &str) -> Option<NaiveDate> {
+    NaiveDate::parse_from_str(text.trim(), DATE_FORMAT).ok()
+}
+
+/// The day `file_name` holds an entry for, or `None` if it isn't one of
+/// Reflect's files at all.
+fn entry_date(file_name: &str) -> Option<NaiveDate> {
+    parse_entry_date(file_name.strip_suffix(".txt")?)
 }
 
 #[cfg(test)]
@@ -142,6 +190,50 @@ mod tests {
 
         let written = std::fs::read_to_string(home.path().join("entries/2026-07-24.txt")).unwrap();
         assert_eq!(written, "One line.\n");
+    }
+
+    #[test]
+    fn the_days_written_on_come_back_most_recent_first() {
+        let home = tempfile::tempdir().unwrap();
+        let entries = Entries::in_dir(home.path().join("entries"));
+        for date in [day(2026, 7, 24), day(2025, 12, 31), day(2026, 7, 25)] {
+            entries.save(date, "Something.").unwrap();
+        }
+
+        assert_eq!(
+            entries.dates().unwrap(),
+            vec![day(2026, 7, 25), day(2026, 7, 24), day(2025, 12, 31)]
+        );
+    }
+
+    #[test]
+    fn before_anyone_has_written_a_word_there_are_no_days_to_list() {
+        // The entries folder isn't made until the first save, so Browse on a
+        // fresh install is an empty list rather than an error about a missing
+        // folder.
+        let home = tempfile::tempdir().unwrap();
+        let entries = Entries::in_dir(home.path().join("entries"));
+
+        assert_eq!(entries.dates().unwrap(), Vec::new());
+    }
+
+    #[test]
+    fn whatever_else_is_in_the_folder_is_not_a_day() {
+        // The entries folder is the user's own — it lives somewhere they can
+        // open, and Reveal Entries Folder invites them into it. Anything they
+        // leave there is theirs, and none of it is a day Reflect wrote.
+        let home = tempfile::tempdir().unwrap();
+        let dir = home.path().join("entries");
+        let entries = Entries::in_dir(&dir);
+        entries
+            .save(day(2026, 7, 24), "The one real entry.")
+            .unwrap();
+        std::fs::write(dir.join("notes.txt"), "shopping list").unwrap();
+        std::fs::write(dir.join("2026-07-25.md"), "written elsewhere").unwrap();
+        std::fs::write(dir.join("2026-13-40.txt"), "not a date").unwrap();
+        std::fs::create_dir(dir.join("2026-07-26.txt")).unwrap();
+
+        assert_eq!(entries.dates().unwrap(), vec![day(2026, 7, 24)]);
     }
 
     #[test]

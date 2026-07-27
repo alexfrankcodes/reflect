@@ -43,15 +43,16 @@ fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, event: tauri::menu::MenuEve
     match TrayAction::from_id(event.id.as_ref()) {
         Some(TrayAction::WriteTodaysReflection) => crate::notes::open_or_report(app),
         Some(TrayAction::OpenSettings) => crate::settings::open_or_report(app),
+        Some(TrayAction::BrowseEntries) => crate::browse::open_or_report(app),
         Some(TrayAction::Quit) => {
             if let Err(err) = crate::notes::quit(app) {
                 eprintln!("could not close the notes window before quitting: {err}");
                 app.exit(0);
             }
         }
-        // Wired up by later tickets: Browse Entries (#17), Reveal Entries
-        // Folder (#18). Selecting them is a no-op for now.
-        Some(TrayAction::BrowseEntries) | Some(TrayAction::RevealEntriesFolder) => {}
+        // Wired up by a later ticket: Reveal Entries Folder (#18). Selecting
+        // it is a no-op for now.
+        Some(TrayAction::RevealEntriesFolder) => {}
         None => {}
     }
 }

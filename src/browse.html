@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Entries</title>
+    <!--
+      Styles and script are separate files rather than inline: the app's CSP
+      in tauri.conf.json allows scripts and styles from `self` only, which
+      rules out inline <style> and <script>, and no bundler runs over this
+      folder to hoist them out.
+    -->
+    <link rel="stylesheet" href="app.css" />
+    <link rel="stylesheet" href="browse.css" />
+  </head>
+  <body>
+    <!-- The days, most recent first. Each is a button, so the list is walkable
+         with a keyboard and reads as a list of choices to a screen reader. -->
+    <nav class="days" id="days" aria-label="Days you have written on"></nav>
+
+    <!-- The chosen day's writing. A plain block of text, never a textarea:
+         past entries are a record of what was written, not something to
+         revise, and the surest way to say so is to have nothing to type in. -->
+    <main class="reading" id="reading">
+      <h1 class="day" id="day"></h1>
+      <p class="entry" id="entry"></p>
+    </main>
+
+    <script src="browse.js"></script>
+  </body>
+</html>
