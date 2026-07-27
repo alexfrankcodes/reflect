@@ -113,7 +113,14 @@ pub fn parse_entry_date(text: &str) -> Option<NaiveDate> {
 /// The day `file_name` holds an entry for, or `None` if it isn't one of
 /// Reflect's files at all.
 fn entry_date(file_name: &str) -> Option<NaiveDate> {
-    parse_entry_date(file_name.strip_suffix(".txt")?)
+    let named = file_name.strip_suffix(".txt")?;
+    let date = parse_entry_date(named)?;
+
+    // A day is a file Reflect itself would have named that way. `2026-7-4.txt`
+    // reads as a date but isn't one Reflect wrote, and listing it would offer
+    // a day whose file [`Entries::path_for`] then looks for under the name it
+    // would have used — and doesn't find.
+    (format_entry_date(date) == named).then_some(date)
 }
 
 #[cfg(test)]
@@ -231,6 +238,9 @@ mod tests {
         std::fs::write(dir.join("notes.txt"), "shopping list").unwrap();
         std::fs::write(dir.join("2026-07-25.md"), "written elsewhere").unwrap();
         std::fs::write(dir.join("2026-13-40.txt"), "not a date").unwrap();
+        // Reads as a date, but not as Reflect spells one — and a day listed
+        // from a name Reflect couldn't rebuild is a day that fails on click.
+        std::fs::write(dir.join("2026-7-4.txt"), "hand-named").unwrap();
         std::fs::create_dir(dir.join("2026-07-26.txt")).unwrap();
 
         assert_eq!(entries.dates().unwrap(), vec![day(2026, 7, 24)]);
