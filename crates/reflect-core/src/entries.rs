@@ -77,9 +77,11 @@ impl Entries {
 
         let mut dates: Vec<NaiveDate> = listing
             .filter_map(Result::ok)
-            // A folder named like an entry is not one, and listing it would
-            // offer the user a day that fails the moment they click it.
-            .filter(|file| matches!(file.file_type(), Ok(kind) if kind.is_file()))
+            // A folder named like an entry is not one, and neither is a file
+            // with nothing in it — Reflect never writes an empty entry, so a
+            // day is only a day if there is something on it. Listing either
+            // would offer a day that fails the moment it's clicked.
+            .filter(|file| matches!(file.metadata(), Ok(day) if day.is_file() && day.len() > 0))
             .filter_map(|file| entry_date(&file.file_name().to_string_lossy()))
             .collect();
 
@@ -242,6 +244,9 @@ mod tests {
         // from a name Reflect couldn't rebuild is a day that fails on click.
         std::fs::write(dir.join("2026-7-4.txt"), "hand-named").unwrap();
         std::fs::create_dir(dir.join("2026-07-26.txt")).unwrap();
+        // A day with nothing on it is a day with no file — one holding nothing
+        // is the same day, however it came to be there.
+        std::fs::write(dir.join("2026-07-21.txt"), "").unwrap();
 
         assert_eq!(entries.dates().unwrap(), vec![day(2026, 7, 24)]);
     }
