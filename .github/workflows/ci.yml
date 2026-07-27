@@ -1,0 +1,91 @@
+# Reflect is written on Windows but ships to two platforms, and every
+# `cfg(target_os = "macos")` branch in `src-tauri` was written without ever
+# being compiled — cross-checking isn't available either, because
+# `mac-notification-sys` builds Objective-C and so needs an Apple SDK. This
+# workflow buys the missing signal: the macOS branch is type-checked by a
+# machine that can actually see it.
+#
+# It buys compilation, not behaviour. Nothing here runs Reflect, so whether the
+# reminder actually appears on macOS — and whether clicking it opens the notes
+# window — stays unverified until someone runs the app on a Mac.
+
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+# Nothing here writes anything back to the repository.
+permissions:
+  contents: read
+
+# On a pull request, a second push makes the first run's answer stale, so let
+# it go rather than queueing behind it. On `master` every commit keeps its own
+# answer instead: a run cancelled halfway leaves a commit nobody can attribute
+# a red macOS job to, which is exactly the commit somebody will later want to
+# bisect towards.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  check:
+    # Both platforms run the identical set of checks, as one matrix rather than
+    # two hand-written jobs, so that the two can't quietly drift apart — which
+    # is the whole failure this workflow exists to prevent.
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      # One platform failing shouldn't hide the other's answer: the interesting
+      # case is precisely "red here, green there".
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # The runner images already ship a Rust, but nothing promises which one or
+      # that clippy and rustfmt came with it. Tracking `stable` rather than a
+      # pinned version means a six-weekly release can turn this red on code
+      # nobody touched, when a new lint lands and `-D warnings` catches it. That
+      # is accepted: a lint worth having is worth hearing about the week it
+      # arrives, and the alternative is a version somebody has to remember to
+      # bump.
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      # Caches the registry and `target/` both. A cold macOS build is minutes
+      # of Tauri and its dependencies; without this the job is slow enough that
+      # somebody eventually starts skipping it.
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Formatting
+        run: cargo fmt --all --check
+
+      # What reaches the macOS `cfg` blocks is the runner underneath, not any
+      # flag here; `--all-targets` only widens this to the tests and benches
+      # alongside the library and the binary.
+      #
+      # Clippy is a superset of the `cargo check` the ticket asked for — it
+      # type-checks everything `check` would and then lints it — so running both
+      # would only buy a second, separately-cached compile of the same code.
+      # `-D warnings` because a lint that doesn't fail the build isn't a gate,
+      # and a platform nobody can run is exactly where warnings would accrue
+      # unnoticed.
+      #
+      # `--locked`, here and on the tests, because without it Cargo is free to
+      # resolve newer semver-compatible dependencies — and a green macOS answer
+      # would then be about a dependency set nobody has committed,
+      # `mac-notification-sys` being exactly the crate where a patch release
+      # changes what compiles. It also turns a lockfile left behind by a
+      # `Cargo.toml` edit into a failure rather than a silent regeneration.
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: Tests
+        run: cargo test --workspace --locked
