@@ -8,7 +8,7 @@
 use chrono::Local;
 use reflect_core::settings::{format_daily_time, parse_daily_time, Settings};
 use serde::Serialize;
-use tauri::{AppHandle, Manager, Runtime, State, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, Runtime, State};
 
 use crate::preferences::Preferences;
 
@@ -39,7 +39,7 @@ pub fn open<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         return Ok(());
     }
 
-    WebviewWindowBuilder::new(app, WINDOW_LABEL, WebviewUrl::App("settings.html".into()))
+    crate::window::builder(app, WINDOW_LABEL, "settings.html")
         .title("Settings")
         // Two rows and a line of text; there is nothing here that reflows, so
         // a resize would only ever spread it thinner. The height is the
@@ -47,12 +47,6 @@ pub fn open<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         // sit apart from what it describes.
         .inner_size(400.0, 178.0)
         .resizable(false)
-        .center()
-        .focused(true)
-        // Light for the same reason the notes window is: the page is a fixed
-        // cream canvas, and a dark title bar would sit on it as a bar of
-        // unrelated colour.
-        .theme(Some(tauri::Theme::Light))
         .build()?;
 
     Ok(())

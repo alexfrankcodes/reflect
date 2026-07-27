@@ -30,8 +30,7 @@ async function drawDays() {
     // there empty beside the reason it's empty.
     showList(false);
     dayHeading.textContent = "";
-    say(`${err}`, "trouble");
-    console.error(err);
+    trouble(err);
     return;
   }
 
@@ -79,15 +78,14 @@ async function show(date) {
     text = await invoke("browse_entry", { date });
   } catch (err) {
     if (showing !== date) return;
-    say(`${err}`, "trouble");
-    console.error(err);
+    trouble(err);
     return;
   }
 
   // A day clicked while a slower one was still loading is the day the reader
   // meant; the one that arrives late has been overtaken and is dropped.
   if (showing !== date) return;
-  entry.className = "entry";
+  entry.classList.remove("aside", "trouble");
   entry.textContent = text;
 }
 
@@ -103,9 +101,16 @@ function markCurrent(date) {
 
 // Reflect speaking for itself rather than showing something written — set
 // apart from the entry it stands in for, so the two can't be confused.
-function say(message, tone) {
-  entry.className = tone ? `entry aside ${tone}` : "entry aside";
+function say(message) {
+  entry.classList.add("aside");
+  entry.classList.remove("trouble");
   entry.textContent = message;
+}
+
+function trouble(err) {
+  say(`${err}`);
+  entry.classList.add("trouble");
+  console.error(err);
 }
 
 function inWords(isoDate, style) {

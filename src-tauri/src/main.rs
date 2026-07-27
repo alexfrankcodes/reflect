@@ -8,6 +8,7 @@ mod preferences;
 mod reminder;
 mod settings;
 mod tray;
+mod window;
 
 use tauri::Manager;
 
@@ -47,7 +48,7 @@ fn main() {
             app.manage(reflect_core::entries::Entries::in_dir(
                 data_dir.join("entries"),
             ));
-            app.manage(notes::Notes::default());
+            app.manage(notes::OpenDay::default());
             // Managed before the reminder thread starts, which reads both of
             // the files it holds.
             app.manage(preferences::Preferences::new(
