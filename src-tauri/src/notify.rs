@@ -121,7 +121,9 @@ fn app_user_model_id(app_id: &str) -> String {
 
 #[cfg(target_os = "macos")]
 fn show(app_id: &str, on_click: impl Fn() + Send + 'static) -> Result<(), Box<dyn Error>> {
-    use mac_notification_sys::{send_notification, set_application, NotificationResponse};
+    use mac_notification_sys::{
+        send_notification, set_application, Notification, NotificationResponse,
+    };
 
     // Without this the notification goes out under whatever bundle the crate
     // falls back to — Finder's — so it would arrive wearing the wrong name and
@@ -130,16 +132,26 @@ fn show(app_id: &str, on_click: impl Fn() + Send + 'static) -> Result<(), Box<dy
     // isn't treated as a failure.
     let _ = set_application(app_id);
 
-    // `send_notification` doesn't return until the user has done something
-    // with the notification, so it can't be called on the scheduler thread.
-    // This thread exists only to wait on one notification and then end.
+    // Asking to be told about the click is what makes the click reachable at
+    // all. Left off, the call hands the banner to the OS and reports "nothing
+    // happened" in the same breath, forgetting the notification as it goes —
+    // and the `Click` arm below is then unreachable code.
+    let mut options = Notification::new();
+    options.wait_for_click(true);
+
+    // That waiting is why this can't be the scheduler thread: the call doesn't
+    // return until the user has done something, which may be hours away or
+    // never. This thread exists to wait on one notification and then end. Only
+    // one reminder a day is shown, so only one such thread a day is parked —
+    // each with a half-second poll on the main run loop behind it, which is
+    // what a click arriving long after the banner has gone costs.
     std::thread::spawn(move || {
-        match send_notification(REMINDER_TITLE, None, REMINDER_BODY, None) {
+        match send_notification(REMINDER_TITLE, None, REMINDER_BODY, Some(&options)) {
             Ok(NotificationResponse::Click) => on_click(),
-            // Dismissed, or left alone until the banner slid away: the day is
-            // skipped and Reflect says nothing more about it. A banner that times
-            // out reports the same as one dismissed, so opening it from
-            // Notification Center later isn't heard — the tray is the way back in.
+            // Dismissed: the day is skipped and Reflect says nothing more about
+            // it. A banner merely left alone is not that — it slides into
+            // Notification Center and stays live there, so an evening's
+            // reminder opened at midnight still opens the page.
             Ok(_) => {}
             Err(err) => eprintln!("could not show the daily reminder: {err}"),
         }

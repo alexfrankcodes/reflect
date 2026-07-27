@@ -48,8 +48,7 @@ fn ask<R: Runtime>(
     record: &LastReminder,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Read from disk each time rather than held in memory, so that a record
-    // repaired on disk stays repaired, and so #16 can move the time under a
-    // running app without restarting it.
+    // repaired on disk stays repaired.
     let now = Local::now().naive_local();
     let last_reminded = record.load_or_start(schedule, now)?;
 

@@ -102,7 +102,7 @@ pub struct LastReminder {
 
 /// How the timestamp is written — sortable, and legible to anyone who opens
 /// the file to see what Reflect thinks it did.
-const TIMESTAMP: &str = "%Y-%m-%dT%H:%M:%S";
+const TIMESTAMP_FORMAT: &str = "%Y-%m-%dT%H:%M:%S";
 
 impl LastReminder {
     /// The record kept at `path`. The file needn't exist yet.
@@ -139,14 +139,17 @@ impl LastReminder {
         if let Some(parent) = self.path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        std::fs::write(&self.path, format!("{}\n", occurrence.format(TIMESTAMP)))
+        std::fs::write(
+            &self.path,
+            format!("{}\n", occurrence.format(TIMESTAMP_FORMAT)),
+        )
     }
 
     fn read(&self) -> io::Result<Option<NaiveDateTime>> {
         let Some(text) = crate::read_if_written(&self.path)? else {
             return Ok(None);
         };
-        Ok(NaiveDateTime::parse_from_str(text.trim(), TIMESTAMP).ok())
+        Ok(NaiveDateTime::parse_from_str(text.trim(), TIMESTAMP_FORMAT).ok())
     }
 }
 
