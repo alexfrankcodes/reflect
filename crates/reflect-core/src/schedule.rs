@@ -118,7 +118,11 @@ impl LastReminder {
     /// nine shouldn't fire a notification a second later, and a clock that has
     /// been moved back shouldn't leave Reflect silent until real time catches
     /// up with a timestamp from its future.
-    pub fn load_or_start(&self, schedule: &Schedule, now: NaiveDateTime) -> io::Result<NaiveDateTime> {
+    pub fn load_or_start(
+        &self,
+        schedule: &Schedule,
+        now: NaiveDateTime,
+    ) -> io::Result<NaiveDateTime> {
         if let Some(recorded) = self.read()? {
             if recorded <= now {
                 return Ok(recorded);
@@ -213,7 +217,10 @@ mod tests {
         // hour apart.
         let last_reminded = on(23, 21, 0);
 
-        assert_eq!(schedule().due(on(25, 20, 30), last_reminded), Reminder::NotDue);
+        assert_eq!(
+            schedule().due(on(25, 20, 30), last_reminded),
+            Reminder::NotDue
+        );
     }
 
     #[test]
@@ -222,7 +229,10 @@ mod tests {
         let schedule = schedule();
 
         // Too late for the 24th's, so it goes unfired...
-        assert_eq!(schedule.due(on(25, 20, 30), last_reminded), Reminder::NotDue);
+        assert_eq!(
+            schedule.due(on(25, 20, 30), last_reminded),
+            Reminder::NotDue
+        );
         // ...and half an hour later the 25th's own reminder arrives as normal.
         assert_eq!(
             schedule.due(on(25, 21, 0), last_reminded),
@@ -248,7 +258,10 @@ mod tests {
     fn a_catch_up_exactly_an_hour_short_of_the_next_is_let_go() {
         let last_reminded = on(23, 21, 0);
 
-        assert_eq!(schedule().due(on(25, 20, 0), last_reminded), Reminder::NotDue);
+        assert_eq!(
+            schedule().due(on(25, 20, 0), last_reminded),
+            Reminder::NotDue
+        );
     }
 
     #[test]
@@ -323,7 +336,10 @@ mod tests {
         let record = LastReminder::at(home.path().join("last-reminder.txt"));
         record.record(on(31, 21, 0)).unwrap();
 
-        assert_eq!(record.load_or_start(&schedule(), at(22, 0)).unwrap(), at(21, 0));
+        assert_eq!(
+            record.load_or_start(&schedule(), at(22, 0)).unwrap(),
+            at(21, 0)
+        );
         // Repaired on disk too, not just for this one reading of it.
         assert_eq!(
             record.load_or_start(&schedule(), at(23, 0)).unwrap(),
@@ -352,6 +368,9 @@ mod tests {
 
         LastReminder::at(&path).record(at(21, 0)).unwrap();
 
-        assert_eq!(std::fs::read_to_string(&path).unwrap(), "2026-07-24T21:00:00\n");
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            "2026-07-24T21:00:00\n"
+        );
     }
 }

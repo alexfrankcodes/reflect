@@ -5,6 +5,13 @@
   "build": {
     "frontendDist": "../src"
   },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["reflect"]
+      }
+    }
+  },
   "app": {
     "windows": [],
     "withGlobalTauri": true,

@@ -19,4 +19,22 @@ reflect-core = { path = "../crates/reflect-core" }
 # clock is this layer's job, not the core's.
 chrono = { workspace = true, features = ["clock"] }
 serde = { version = "1", features = ["derive"] }
+# Required at the crate root by `generate_context!` once tauri.conf.json
+# carries plugin configuration.
+serde_json = "1"
 tauri = { version = "2", features = ["tray-icon"] }
+# Clicking the reminder has to reach the tray app that is already running,
+# rather than start a second one. See `notify.rs` for why that is a deep link.
+tauri-plugin-deep-link = "2"
+tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
+
+[target.'cfg(windows)'.dependencies]
+# Toasts are built by hand rather than with `tauri-winrt-notification`, which
+# has no way to set the `launch` protocol the click depends on.
+windows = { version = "0.62", features = [
+  "Data_Xml_Dom",
+  "UI_Notifications",
+] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+mac-notification-sys = "0.6"

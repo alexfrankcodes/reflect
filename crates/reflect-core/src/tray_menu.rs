@@ -8,9 +8,9 @@
 /// Something the user can ask for from the tray menu.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TrayAction {
-    /// Temporary. Until #15 fires the daily notification and routes a click on
-    /// it to the notes window, this is the only way to reach that window —
-    /// and it goes away again when that lands.
+    /// The daily notification is the way into the notes window; this is the
+    /// way in on every other day, when the reminder has been and gone, or was
+    /// dismissed, or the user simply wants to write twice.
     WriteTodaysReflection,
     OpenSettings,
     BrowseEntries,
@@ -63,9 +63,7 @@ mod tests {
 
     #[test]
     fn menu_reads_top_to_bottom_as_the_spec_describes_it() {
-        // The first line is the temporary stand-in for the daily notification
-        // and goes when #15 lands — delete it from here at the same time, so
-        // every label a user can see stays spelled out in one place.
+        // Every label a user can see, spelled out in one place.
         let labels: Vec<&str> = TrayAction::ALL.iter().map(|a| a.label()).collect();
         assert_eq!(
             labels,
