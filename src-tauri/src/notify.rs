@@ -135,7 +135,9 @@ fn show(app_id: &str, on_click: impl Fn() + Send + 'static) -> Result<(), Box<dy
     // Asking to be told about the click is what makes the click reachable at
     // all. Left off, the call hands the banner to the OS and reports "nothing
     // happened" in the same breath, forgetting the notification as it goes —
-    // and the `Click` arm below is then unreachable code.
+    // and the `Click` arm below is then unreachable code. That much is read
+    // straight off the crate: no options means no `needs_response`, which means
+    // the call is told not to wait and returns the empty result it started with.
     let mut options = Notification::new();
     options.wait_for_click(true);
 
@@ -148,10 +150,18 @@ fn show(app_id: &str, on_click: impl Fn() + Send + 'static) -> Result<(), Box<dy
     std::thread::spawn(move || {
         match send_notification(REMINDER_TITLE, None, REMINDER_BODY, Some(&options)) {
             Ok(NotificationResponse::Click) => on_click(),
-            // Dismissed: the day is skipped and Reflect says nothing more about
-            // it. A banner merely left alone is not that — it slides into
-            // Notification Center and stays live there, so an evening's
-            // reminder opened at midnight still opens the page.
+            // Dismissed: the day is skipped and Reflect says nothing more
+            // about it.
+            //
+            // Whether a banner nobody touches counts as dismissed is a guess,
+            // and stated as one. The crate calls it dismissed once the
+            // notification leaves `deliveredNotifications`, and a timed-out
+            // banner is widely said to move to Notification Center rather than
+            // leave — which would keep it live, and an evening's reminder
+            // opened at midnight would still open the page. Nothing here has
+            // been run to confirm that, and it may well turn on the
+            // notification style the user has set. Either way the tray is the
+            // way back in.
             Ok(_) => {}
             Err(err) => eprintln!("could not show the daily reminder: {err}"),
         }
