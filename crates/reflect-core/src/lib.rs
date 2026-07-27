@@ -7,6 +7,7 @@
 pub mod entries;
 pub mod notes;
 pub mod prompts;
+pub mod schedule;
 pub mod tray_menu;
 
 /// A calendar date, for tests that need one to talk about.
