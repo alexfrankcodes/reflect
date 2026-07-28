@@ -103,11 +103,23 @@ Those persisted too — though PowerShell's own shortcut was not inspected, so t
 
 The finding is scoped to what was run, and the gaps matter as much as the result.
 Windows 11 build 26200, unpackaged, protocol activation, on one machine: four runs with a shortcut, two without, and one probe under an identity Windows had never seen.
-No installer was run: the shortcut was written by hand, so the reach from here to an installed Reflect rests on Tauri's bundler writing the same `System.AppUserModel.ID` onto the shortcut it installs.
-That is asserted by the decision above and by every ticket beneath it, and it has been verified by nobody — the bundler lives in the Tauri CLI, which is not installed on this machine, so its template was not read either.
-It is named here as an assumption rather than repeated as a fact, because this document exists to record what came of trusting one of those.
-Issue #26 builds the first installer this project has ever produced, and that is where it holds or falls.
 The retired Microsoft text may well have been true of Windows 10, and nothing here says otherwise; it says only that Reflect cannot claim the activator as its reason today.
+
+### And then the installer, once there was one
+
+Every run above used a hand-written shortcut, so the reach from them to an installed Reflect rested on Tauri's bundler writing the same `System.AppUserModel.ID` onto the shortcut it installs.
+That was asserted by the decision above and by every ticket beneath it, and verified by nobody.
+It has since been checked, because this document exists to record what came of trusting an assertion of exactly that kind.
+
+The first NSIS installer this project has ever produced was built and installed the same day.
+Its Start Menu shortcut carries `System.AppUserModel.ID` as `com.alexfrankcodes.reflect`, and no `System.AppUserModel.ToastActivatorCLSID` — precisely what the decision above assumed, down to the absent activator.
+A reminder from the installed build arrives as **Reflect**, with its icon.
+
+One detail is worth leaving for whoever reads a shortcut next.
+The bundler stores the identity as a `VT_BSTR` where Reflect's hand-written shortcut used a `VT_LPWSTR`.
+Both are strings the shell reads back happily, but a reader that knows only one of them reports the property absent when it is plainly there — which is how this check first appeared to fail.
+
+Uninstalling was watched too, since an installed Reflect was there to watch: it removed the install directory, the Start Menu shortcut and the `reflect://` protocol registration, and left the entries folder and the entry seeded in it untouched.
 
 ## The decision that replaces it
 
@@ -126,6 +138,6 @@ One simplification survives the reversal, on better grounds than the ones record
 The branch does nothing but attribute development reminders to another application, so it goes whether or not a shortcut is ever written.
 That, and correcting the comments this experiment falsified, is now the whole of issue #25.
 
-This rests on one thing not measured: that Tauri's bundler writes the identity onto the shortcut it installs, so that an installed Reflect still shows its own name and icon.
-No installer has ever been built for this project.
-Issue #26 builds the first one and already asks that a reminder from the installed build arrive under Reflect's own name and icon — if that fails, the bundler does not write the identity, this decision is wrong about installed users too, and writing the shortcut comes back on evidence rather than on assumption.
+This rested on one thing not measured — that Tauri's bundler writes the identity onto the shortcut it installs, so an installed Reflect still shows its own name and icon.
+It has since been built and checked, and it holds: the installer's shortcut carries the identity, and the installed build's reminder arrives as Reflect.
+The decision therefore stands on measurement throughout rather than on an assertion at its last step.
