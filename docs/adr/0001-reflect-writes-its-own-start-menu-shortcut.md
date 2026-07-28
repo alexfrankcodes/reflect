@@ -103,7 +103,10 @@ Those persisted too — though PowerShell's own shortcut was not inspected, so t
 
 The finding is scoped to what was run, and the gaps matter as much as the result.
 Windows 11 build 26200, unpackaged, protocol activation, on one machine: four runs with a shortcut, two without, and one probe under an identity Windows had never seen.
-No installer was run: the shortcut was written by hand, so the reach from here to an installed Reflect rests on the bundler writing the same `System.AppUserModel.ID` onto its own shortcut — which is what it is documented to do, and what the decision above already took for granted.
+No installer was run: the shortcut was written by hand, so the reach from here to an installed Reflect rests on Tauri's bundler writing the same `System.AppUserModel.ID` onto the shortcut it installs.
+That is asserted by the decision above and by every ticket beneath it, and it has been verified by nobody — the bundler lives in the Tauri CLI, which is not installed on this machine, so its template was not read either.
+It is named here as an assumption rather than repeated as a fact, because this document exists to record what came of trusting one of those.
+Issue #26 builds the first installer this project has ever produced, and that is where it holds or falls.
 The retired Microsoft text may well have been true of Windows 10, and nothing here says otherwise; it says only that Reflect cannot claim the activator as its reason today.
 
 ## The decision that replaces it
