@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 use chrono::{Days, NaiveDateTime, NaiveTime, TimeDelta};
 
-/// The time Reflect nudges you on, until Settings lets the user move it.
+/// The time Reflect nudges you on until you say otherwise in Settings.
 /// Evening — late enough that there's a day behind you worth looking back on.
 pub const DEFAULT_DAILY_TIME: NaiveTime = match NaiveTime::from_hms_opt(21, 0, 0) {
     Some(time) => time,
@@ -134,6 +134,46 @@ impl LastReminder {
         Ok(restarted_at)
     }
 
+    /// Bring the record into line with a daily time the user has just moved
+    /// `from` one time of day `to` another.
+    ///
+    /// Moving the time earlier invents occurrences in the past: set eight in
+    /// the morning at ten o'clock and the day's eight has already gone by.
+    /// Reflect was never asked to deliver it — the user was told what time
+    /// they'd be nudged from now on, not offered a reminder the moment they
+    /// closed Settings — so it is marked as handled instead of fired.
+    ///
+    /// The record only ever moves forward here, so a nudge already delivered
+    /// under the old time stays delivered. A time moved later in the day
+    /// therefore leaves that evening's occurrence still to come, even where
+    /// one has already gone out today: a user who sets their reminder to nine
+    /// this morning has asked to be nudged at nine, and staying silent until
+    /// tomorrow would be the surprising answer.
+    ///
+    /// A time that didn't actually move leaves the record untouched, which is
+    /// why this takes both times rather than trusting the caller to ask only
+    /// when it matters: skipping past occurrences under the time already in
+    /// force would swallow exactly the catch-up a machine asleep at the hour
+    /// is owed.
+    pub fn follow_time_change(
+        &self,
+        from: NaiveTime,
+        to: NaiveTime,
+        now: NaiveDateTime,
+    ) -> io::Result<()> {
+        if from == to {
+            return Ok(());
+        }
+
+        let schedule = Schedule::daily_at(to);
+        let last_reminded = self.load_or_start(&schedule, now)?;
+        let current = schedule.occurrence_on_or_before(now);
+        if current > last_reminded {
+            self.record(current)?;
+        }
+        Ok(())
+    }
+
     /// Remember that `occurrence`'s reminder went out.
     pub fn record(&self, occurrence: NaiveDateTime) -> io::Result<()> {
         if let Some(parent) = self.path.parent() {
@@ -160,6 +200,12 @@ mod tests {
 
     /// Reflect's reminder time in these tests: nine in the evening.
     const NINE_PM: NaiveTime = DEFAULT_DAILY_TIME;
+
+    /// The time a user moves their reminder to in these tests.
+    const EIGHT_AM: NaiveTime = match NaiveTime::from_hms_opt(8, 0, 0) {
+        Some(time) => time,
+        None => unreachable!(),
+    };
 
     fn schedule() -> Schedule {
         Schedule::daily_at(NINE_PM)
@@ -359,6 +405,82 @@ mod tests {
                 .load_or_start(&schedule(), at(22, 0))
                 .unwrap(),
             at(21, 0)
+        );
+    }
+
+    #[test]
+    fn a_reminder_moved_earlier_than_now_does_not_fire_the_hour_already_gone() {
+        // Nudged last night at nine. At ten the next morning the user moves
+        // the reminder to eight — an hour that has already been and gone
+        // today, and that Reflect must not treat as owed.
+        let home = tempfile::tempdir().unwrap();
+        let record = LastReminder::at(home.path().join("last-reminder.txt"));
+        record.record(on(24, 21, 0)).unwrap();
+        let moved = Schedule::daily_at(EIGHT_AM);
+        let morning = on(25, 10, 0);
+
+        record
+            .follow_time_change(NINE_PM, EIGHT_AM, morning)
+            .unwrap();
+
+        let last_reminded = record.load_or_start(&moved, morning).unwrap();
+        assert_eq!(moved.due(morning, last_reminded), Reminder::NotDue);
+        // Tomorrow's eight o'clock — the first one the user actually asked
+        // for — arrives as normal.
+        assert_eq!(
+            moved.due(on(26, 8, 0), last_reminded),
+            Reminder::Due {
+                occurrence: on(26, 8, 0)
+            }
+        );
+    }
+
+    #[test]
+    fn a_reminder_moved_later_in_the_day_still_arrives_that_evening() {
+        // Nudged at eight this morning. At ten the user moves the reminder to
+        // nine in the evening: tonight's is a real occurrence still ahead of
+        // them, and must not be marked as delivered on the way past.
+        let home = tempfile::tempdir().unwrap();
+        let record = LastReminder::at(home.path().join("last-reminder.txt"));
+        record.record(on(25, 8, 0)).unwrap();
+        let moved = Schedule::daily_at(NINE_PM);
+        let morning = on(25, 10, 0);
+
+        record
+            .follow_time_change(EIGHT_AM, NINE_PM, morning)
+            .unwrap();
+
+        let last_reminded = record.load_or_start(&moved, morning).unwrap();
+        assert_eq!(last_reminded, on(25, 8, 0));
+        assert_eq!(
+            moved.due(on(25, 21, 0), last_reminded),
+            Reminder::Due {
+                occurrence: on(25, 21, 0)
+            }
+        );
+    }
+
+    #[test]
+    fn settling_for_the_time_already_in_force_leaves_a_catch_up_still_owed() {
+        // Saving Settings without touching the time — turning prompts off, say
+        // — must not cost the user a nudge. Skipping past occurrences under the
+        // time already in force would swallow exactly the catch-up a machine
+        // asleep at the hour is owed, so an unchanged time changes nothing.
+        let home = tempfile::tempdir().unwrap();
+        let record = LastReminder::at(home.path().join("last-reminder.txt"));
+        record.record(on(23, 21, 0)).unwrap();
+        let schedule = schedule();
+        // Asleep through last night's nine o'clock, woken at midday.
+        let midday = on(25, 12, 0);
+
+        record.follow_time_change(NINE_PM, NINE_PM, midday).unwrap();
+
+        let last_reminded = record.load_or_start(&schedule, midday).unwrap();
+        assert_eq!(
+            schedule.due(midday, last_reminded),
+            Reminder::Due {
+                occurrence: on(24, 21, 0)
+            }
         );
     }
 

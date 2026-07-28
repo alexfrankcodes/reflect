@@ -1,0 +1,115 @@
+/*
+  The Browse window: the days down the left, the day you picked on the right.
+  A reading window rather than a writing one — the text on the right is a
+  block of prose, not a box, because there is nothing here to type into.
+
+  The page underneath — paper colour, ink, UI font — comes from `app.css`.
+*/
+
+/*
+  The two columns are set from one measure so they can't drift apart: the pane
+  starts its text at `--pane-top`, and the list has to subtract the padding its
+  own buttons carry to start at the same line.
+*/
+body {
+  display: flex;
+
+  --pane-top: 26px;
+  --day-padding: 7px;
+}
+
+.days {
+  flex: 0 0 190px;
+  /* A long-kept journal is a long list; it scrolls on its own so the entry
+     beside it stays where it is. */
+  overflow-y: auto;
+  padding: calc(var(--pane-top) - var(--day-padding)) 10px 20px;
+  border-right: 1px solid var(--rule);
+}
+
+.day-button {
+  display: block;
+  width: 100%;
+  margin-bottom: 1px;
+  padding: var(--day-padding) 10px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  /* Quiet until it's the one being read, so the list reads as a single soft
+     column with one line picked out of it rather than forty competing ones. */
+  color: var(--quiet);
+  text-align: left;
+  cursor: default;
+}
+
+.day-button:hover {
+  background: var(--hover);
+}
+
+.day-button[aria-current="true"] {
+  background: var(--rule);
+  color: var(--ink);
+}
+
+.day-button:focus-visible {
+  outline: 2px solid var(--quiet);
+  outline-offset: -2px;
+}
+
+.reading {
+  flex: 1;
+  /* The other half of the same rule: the entry scrolls without taking the
+     list of days with it. */
+  overflow-y: auto;
+  padding: var(--pane-top) 30px;
+}
+
+/* Nothing to list means nothing to sit beside, and the pane becomes the whole
+   window. A single line left in the top corner of all that space reads as
+   something that failed to load; in the middle of it, it reads as the answer
+   it is. */
+.reading.alone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.day {
+  margin: 0 0 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* The same serif the notes window writes in, so a day reads back the way it
+   was written. `pre-wrap` because the line breaks are the user's own. */
+.entry {
+  margin: 0;
+  /* This window can be pulled as wide as the screen, and a line of prose that
+     wide is one the eye loses its place on halfway across. The measure stops
+     where it stops being readable; the rest of the width is just margin. */
+  max-width: 60ch;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--ink);
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+/* Anything Reflect has to say for itself — an empty journal, or an entry it
+   couldn't read. Said in the page's own quiet voice, not in the user's serif,
+   so it can't be mistaken for something they wrote. */
+.entry.aside {
+  font-family: var(--ui-font);
+  font-size: 13px;
+  font-style: italic;
+  color: var(--quiet);
+}
+
+.entry.trouble {
+  color: var(--trouble);
+}

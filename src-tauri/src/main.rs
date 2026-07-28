@@ -1,10 +1,14 @@
 // Prevents an extra console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod browse;
 mod notes;
 mod notify;
+mod preferences;
 mod reminder;
+mod settings;
 mod tray;
+mod window;
 
 use tauri::Manager;
 
@@ -20,7 +24,11 @@ fn main() {
         .plugin(tauri_plugin_deep_link::init())
         .invoke_handler(tauri::generate_handler![
             notes::notes_page,
-            notes::notes_close
+            notes::notes_close,
+            settings::settings_page,
+            settings::settings_save,
+            browse::browse_dates,
+            browse::browse_entry
         ])
         .setup(|app| {
             // Reflect has no Dock presence on macOS — the menu bar item is the
@@ -34,7 +42,19 @@ fn main() {
             // keeps per-app data — `%APPDATA%\<identifier>\entries` on Windows,
             // `~/Library/Application Support/<identifier>/entries` on macOS.
             let data_dir = app.path().app_data_dir()?;
-            app.manage(notes::Notes::with_entries_in(data_dir.join("entries")));
+            // Managed in its own right rather than owned by either window: the
+            // notes window writes the entries and the browse window reads them,
+            // and neither is where they live.
+            app.manage(reflect_core::entries::Entries::in_dir(
+                data_dir.join("entries"),
+            ));
+            app.manage(notes::OpenDay::default());
+            // Managed before the reminder thread starts, which reads both of
+            // the files it holds.
+            app.manage(preferences::Preferences::new(
+                data_dir.join("settings.txt"),
+                data_dir.join("last-reminder.txt"),
+            ));
 
             use tauri_plugin_deep_link::DeepLinkExt;
 
@@ -65,7 +85,7 @@ fn main() {
             }
 
             tray::create(app.handle())?;
-            reminder::start(app.handle(), data_dir.join("last-reminder.txt"));
+            reminder::start(app.handle());
             Ok(())
         })
         .build(tauri::generate_context!())

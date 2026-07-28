@@ -3,11 +3,12 @@
 //! The menu's shape lives in `reflect_core::tray_menu`; this module is the
 //! adapter that turns it into real OS menu items and back again.
 
+use reflect_core::entries::Entries;
 use reflect_core::tray_menu::TrayAction;
 use tauri::{
     menu::{IsMenuItem, Menu, MenuItem},
     tray::TrayIconBuilder,
-    AppHandle, Runtime,
+    AppHandle, Manager, Runtime,
 };
 
 pub fn create<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
@@ -42,17 +43,41 @@ pub fn create<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
 fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, event: tauri::menu::MenuEvent) {
     match TrayAction::from_id(event.id.as_ref()) {
         Some(TrayAction::WriteTodaysReflection) => crate::notes::open_or_report(app),
+        Some(TrayAction::OpenSettings) => crate::settings::open_or_report(app),
+        Some(TrayAction::BrowseEntries) => crate::browse::open_or_report(app),
         Some(TrayAction::Quit) => {
             if let Err(err) = crate::notes::quit(app) {
                 eprintln!("could not close the notes window before quitting: {err}");
                 app.exit(0);
             }
         }
-        // Wired up by later tickets: Settings (#16), Browse Entries (#17),
-        // Reveal Entries Folder (#18). Selecting them is a no-op for now.
-        Some(TrayAction::OpenSettings)
-        | Some(TrayAction::BrowseEntries)
-        | Some(TrayAction::RevealEntriesFolder) => {}
+        Some(TrayAction::RevealEntriesFolder) => reveal_entries_folder(app),
         None => {}
+    }
+}
+
+/// Show the user their entries folder in Finder or Explorer.
+///
+/// Reflect has no export feature and doesn't need one: the entries are plain
+/// files in a folder the OS already knows how to open, copy, and back up. This
+/// is the whole of handing them over.
+fn reveal_entries_folder<R: Runtime>(app: &AppHandle<R>) {
+    let entries = app.state::<Entries>();
+
+    // Asked for rather than assumed: someone who wants to see where their
+    // writing will land before they've written any is asking a fair question,
+    // and an empty folder answers it.
+    let dir = match entries.ensure_dir() {
+        Ok(dir) => dir,
+        Err(err) => {
+            // Neither failure has anywhere useful to go: the tray menu closes
+            // on click, and there is no window of ours to put the news in.
+            eprintln!("could not create the entries folder: {err}");
+            return;
+        }
+    };
+
+    if let Err(err) = tauri_plugin_opener::open_path(dir, None::<&str>) {
+        eprintln!("could not open the entries folder: {err}");
     }
 }

@@ -14,14 +14,18 @@ async function openTodaysPage() {
   } catch (err) {
     // Nothing typed on a page that never opened could be saved, so say so
     // and close the page to writing rather than take words it would drop.
-    promptLine.textContent = `${err}`;
+    say(`${err}`);
     entry.placeholder = "";
     entry.readOnly = true;
     console.error(err);
     return;
   }
 
-  promptLine.textContent = page.prompt;
+  // No prompt line at all where the user has turned prompts off — an empty one
+  // would still hold its space above the page, which is the opposite of what
+  // turning them off asks for.
+  promptLine.hidden = page.prompt === null;
+  promptLine.textContent = page.prompt ?? "";
   entry.value = page.text;
   entry.focus();
   // Reopening a day picks up after what's already written rather than in
@@ -37,10 +41,17 @@ async function openTodaysPage() {
       await invoke("notes_close", { text: entry.value });
     } catch (err) {
       event.preventDefault();
-      promptLine.textContent = `${err} — your writing is still here.`;
+      say(`${err} — your writing is still here.`);
       console.error(err);
     }
   });
+}
+
+// The prompt line doubles as the one place this page has to say anything, so a
+// message has to reach it whether or not prompts are switched on.
+function say(message) {
+  promptLine.hidden = false;
+  promptLine.textContent = message;
 }
 
 openTodaysPage();

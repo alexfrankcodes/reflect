@@ -5,40 +5,38 @@
 //! This module opens a window, hands the page its text, and hands the text
 //! back when the window closes.
 
-use std::path::PathBuf;
 use std::sync::Mutex;
 
 use chrono::Local;
-use reflect_core::entries::Entries;
+use reflect_core::entries::{Entries, Saved};
 use reflect_core::notes::NotesSession;
 use serde::Serialize;
-use tauri::{AppHandle, Manager, Runtime, State, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, Runtime, State};
+
+use crate::preferences::Preferences;
 
 /// The one notes window there ever is.
 const WINDOW_LABEL: &str = "notes";
 
-/// Reflect's writing state: where entries live, and the day currently open.
-pub struct Notes {
-    entries: Entries,
+/// The day currently open for writing.
+///
+/// Where the entries themselves live is [`Entries`], managed alongside this and
+/// read by the Browse window too — this holds only what belongs to a sitting at
+/// the notes window.
+#[derive(Default)]
+pub struct OpenDay {
     /// `Some` from the moment the page asks for its text until the window
     /// closes. A window that closes without ever having asked has nothing on
     /// it to save.
-    open_session: Mutex<Option<NotesSession>>,
-}
-
-impl Notes {
-    pub fn with_entries_in(dir: PathBuf) -> Self {
-        Self {
-            entries: Entries::in_dir(dir),
-            open_session: Mutex::new(None),
-        }
-    }
+    session: Mutex<Option<NotesSession>>,
 }
 
 /// What the notes page shows when it opens.
 #[derive(Serialize)]
 pub struct Page {
-    prompt: String,
+    /// `None` where the user has turned prompts off — the page then draws no
+    /// prompt line at all rather than an empty one.
+    prompt: Option<String>,
     text: String,
 }
 
@@ -60,16 +58,10 @@ pub fn open<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         return Ok(());
     }
 
-    WebviewWindowBuilder::new(app, WINDOW_LABEL, WebviewUrl::App("notes.html".into()))
+    crate::window::builder(app, WINDOW_LABEL, "notes.html")
         .title("Reflect")
         .inner_size(480.0, 380.0)
         .min_inner_size(320.0, 220.0)
-        .center()
-        .focused(true)
-        // The page inside is a fixed cream canvas, so the title bar is asked
-        // to be light too rather than left to follow the OS into dark mode and
-        // sit on the window like a bar of unrelated colour.
-        .theme(Some(tauri::Theme::Light))
         .build()?;
 
     Ok(())
@@ -106,18 +98,30 @@ pub fn quit<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
 
 /// Today's page: its prompt, and whatever is already written on it.
 #[tauri::command]
-pub fn notes_page(notes: State<'_, Notes>) -> Result<Page, String> {
+pub fn notes_page(
+    open_day: State<'_, OpenDay>,
+    entries: State<'_, Entries>,
+    preferences: State<'_, Preferences>,
+) -> Result<Page, String> {
+    // Read at open rather than held from startup, so that turning prompts off
+    // in Settings shows on the very next page rather than the next launch.
+    let settings = preferences
+        .lock()
+        .settings
+        .load()
+        .map_err(|err| format!("couldn't read your settings: {err}"))?;
+
     // Today is settled here rather than when the window was built, so a window
     // opened seconds before midnight belongs to the day its page was drawn for
     // — the same day the entry will be filed under when it closes.
-    let session = NotesSession::open(&notes.entries, Local::now().date_naive())
+    let session = NotesSession::open(&entries, &settings, Local::now().date_naive())
         .map_err(|err| format!("couldn't read today's entry: {err}"))?;
 
     let page = Page {
-        prompt: session.prompt().to_owned(),
+        prompt: session.prompt().map(str::to_owned),
         text: session.opened_with().to_owned(),
     };
-    *notes.open_session.lock().expect("notes session lock") = Some(session);
+    *open_day.session.lock().expect("notes session lock") = Some(session);
 
     Ok(page)
 }
@@ -125,24 +129,30 @@ pub fn notes_page(notes: State<'_, Notes>) -> Result<Page, String> {
 /// The window is closing on `text`. Returning an error keeps it open, so
 /// nothing the user wrote disappears behind a failed write.
 #[tauri::command]
-pub fn notes_close(notes: State<'_, Notes>, text: String) -> Result<(), String> {
-    let session = notes
-        .open_session
-        .lock()
-        .expect("notes session lock")
-        .take();
+pub fn notes_close(
+    app: AppHandle,
+    open_day: State<'_, OpenDay>,
+    entries: State<'_, Entries>,
+    text: String,
+) -> Result<(), String> {
+    let session = open_day.session.lock().expect("notes session lock").take();
 
     let Some(session) = session else {
         return Ok(());
     };
 
-    session
-        .close(&notes.entries, &text)
-        .map(|_| ())
-        .map_err(|err| {
-            // Put it back: the window stays open on the failure, and closing it
-            // again should try the same save again rather than lose the day.
-            *notes.open_session.lock().expect("notes session lock") = Some(session);
-            format!("couldn't save today's entry: {err}")
-        })
+    let saved = session.close(&entries, &text).map_err(|err| {
+        // Put it back: the window stays open on the failure, and closing it
+        // again should try the same save again rather than lose the day.
+        *open_day.session.lock().expect("notes session lock") = Some(session);
+        format!("couldn't save today's entry: {err}")
+    })?;
+
+    // A Browse window open at the same time was listing the entries as they
+    // were a moment ago, and today's has just joined them.
+    if saved == Saved::Wrote {
+        crate::browse::entries_changed(&app);
+    }
+
+    Ok(())
 }
