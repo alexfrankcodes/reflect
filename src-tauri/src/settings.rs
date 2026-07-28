@@ -89,21 +89,23 @@ pub fn settings_page(preferences: State<'_, Preferences>) -> Result<Page, String
 /// then fails costs at most a single day's nudge, and this codebase already
 /// holds that a missed reminder beats two almost back to back.
 ///
-/// The OS registration is changed before the settings are written for the same
-/// reason in the other direction: a refusal from the OS leaves both it and the
-/// file as they were, and a write that fails after it succeeded is put right at
-/// the next startup, which reconciles the OS to whatever the file says.
+/// The OS registration goes first of the three, for the same reason read the
+/// other way: a refusal from Windows then leaves the record, the file and the
+/// registry all as they were, and there is nothing to unpick. Should either of
+/// the writes after it fail, the next startup reconciles the registry to
+/// whatever the file says — unless the file can't be read then either, in which
+/// case Reflect leaves the disagreement alone rather than guess which side of
+/// it the user meant.
 ///
-/// `start_at_login` is `None` from a page that never offered the row, which is
-/// every platform but Windows; the stored preference is then left alone rather
-/// than overwritten with a default the user never chose.
+/// `start_at_login` is ignored where the platform doesn't do it, because the
+/// page never offered the row and its checkbox is no one's answer.
 #[tauri::command]
 pub fn settings_save(
     app: AppHandle,
     preferences: State<'_, Preferences>,
     daily_time: String,
     show_prompts: bool,
-    start_at_login: Option<bool>,
+    start_at_login: bool,
 ) -> Result<Page, String> {
     // Refused rather than quietly rounded to a default — standing 9pm in place
     // of something Reflect couldn't read is how a user's chosen time changes
@@ -120,8 +122,15 @@ pub fn settings_save(
     let chosen = Settings {
         daily_time,
         show_prompts,
-        start_at_login: start_at_login.unwrap_or(in_force.start_at_login),
+        start_at_login: if crate::autostart::SUPPORTED {
+            start_at_login
+        } else {
+            in_force.start_at_login
+        },
     };
+
+    crate::autostart::apply(&app, chosen.start_at_login)
+        .map_err(|err| format!("couldn't set whether Reflect starts at login: {err}"))?;
 
     // A time that hasn't moved leaves the record alone, which is the whole of
     // why both times are handed over rather than only the new one.
@@ -133,9 +142,6 @@ pub fn settings_save(
             Local::now().naive_local(),
         )
         .map_err(|err| format!("couldn't reschedule your reminder: {err}"))?;
-
-    crate::autostart::apply(&app, chosen.start_at_login)
-        .map_err(|err| format!("couldn't set whether Reflect starts at login: {err}"))?;
 
     files
         .settings

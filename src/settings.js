@@ -39,9 +39,9 @@ async function apply() {
       await invoke("settings_save", {
         dailyTime: dailyTime.value,
         showPrompts: showPrompts.checked,
-        // A row that was never offered doesn't get to change the preference
-        // behind it; Reflect keeps whatever is already stored.
-        startAtLogin: startAtLoginRow.hidden ? null : startAtLogin.checked,
+        // Sent even where the row isn't shown; Reflect ignores it on a platform
+        // that never offered it rather than trusting a box nobody could see.
+        startAtLogin: startAtLogin.checked,
       }),
     );
   } catch (err) {

@@ -259,7 +259,7 @@ mod tests {
     }
 
     #[test]
-    fn a_settings_file_from_before_this_setting_existed_still_reads() {
+    fn a_settings_file_from_before_start_at_login_existed_still_reads() {
         // Upgrading mustn't cost the user the time they chose. The file an
         // older Reflect wrote has no start-at-login line at all, and that is
         // an absent setting rather than a broken file.
@@ -275,7 +275,7 @@ mod tests {
     }
 
     #[test]
-    fn an_unreadable_start_at_login_costs_only_itself() {
+    fn an_unreadable_start_at_login_falls_back_only_for_itself() {
         let home = tempfile::tempdir().unwrap();
         let path = home.path().join("settings.txt");
         std::fs::write(
