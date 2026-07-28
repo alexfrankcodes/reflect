@@ -60,10 +60,10 @@ fn ask<R: Runtime>(app: &AppHandle<R>, app_id: &str) -> Result<(), Box<dyn std::
 
     // Handed to the OS first, recorded second, so that a reminder Reflect
     // never managed to hand over is still owed on the next tick. Only that
-    // much is guaranteed: both platforms can accept a notification and then
-    // decline to show it — Windows silently drops a toast whose app id it
-    // can't resolve — and neither tells us. What is recorded is that Reflect
-    // asked for the nudge, which is the most it ever knows.
+    // much is guaranteed: either platform can accept a notification and then
+    // decline to show it — a notification setting, a focus session — and
+    // neither tells us. What is recorded is that Reflect asked for the nudge,
+    // which is the most it ever knows.
     let app = app.clone();
     crate::notify::daily_reminder(app_id, move || {
         // Onto the main thread before building a window. macOS hands the click

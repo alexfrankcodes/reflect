@@ -9,28 +9,26 @@
 //!
 //! `ToastNotification` has an `Activated` event, and it is tempting: the tray
 //! app is already running, so an in-process callback ought to be all it takes.
-//! It isn't. For an unpackaged desktop app, Windows routes an activation by
-//! looking for a Start Menu shortcut to the sending binary and reading
-//! `System.AppUserModel.ToastActivatorCLSID` off it. Tauri's installer sets
-//! `System.AppUserModel.ID` on that shortcut — which is what makes the toast
-//! appear at all — but never the activator CLSID, so there is nothing for
-//! Windows to activate and the event never fires.
+//! It isn't free, though. In-process activation for an unpackaged app means
+//! registering a real `INotificationActivationCallback` COM server and
+//! pointing a Start Menu shortcut's `System.AppUserModel.ToastActivatorCLSID`
+//! at it — a COM server, a shortcut the app has to write and maintain, and an
+//! uninstaller that has to clean up after both, for one notification a day.
 //!
-//! What does work without a COM server is protocol activation: the toast
-//! carries a `launch` URI, Windows opens it like any other link, and the
-//! single-instance plugin hands it to the copy of Reflect already running.
-//! That is what `main.rs` listens for.
+//! Protocol activation asks for none of that: the toast carries a `launch`
+//! URI, Windows opens it like any other link, and the single-instance plugin
+//! hands it to the copy of Reflect already running. That is what `main.rs`
+//! listens for, and it is measured to work from the notification centre just
+//! as it does from the banner.
 //!
-//! Something may still be owed to the installer, though — unconfirmed, and
-//! worth checking against Microsoft's own documentation before anyone relies
-//! on it. A stub `ToastActivatorCLSID` on that same shortcut — any GUID, with
-//! no COM server behind it — *appears* to be what makes Windows keep a
-//! notification in the Action Centre once its banner has gone. If that reading
-//! is right, the reminder is currently live only while it is on screen, and
-//! someone away from their desk at nine can't come back and click it. Reflect's
-//! nudge is one quiet moment in the day, so that would be worth fixing when
-//! packaging is taken up; it needs a shell-link property the bundler doesn't
-//! write today, not a change in this file.
+//! Nothing here needs a Start Menu shortcut. An earlier reading of Microsoft's
+//! documentation had it that a reminder is discarded once its banner fades
+//! unless a shortcut carries a stub activator CLSID; that was measured and it
+//! is false, along with the belief that a toast is dropped outright when no
+//! shortcut carries its identity. A shortcut supplies the name and icon the
+//! reminder appears under and nothing else — which is why a Reflect that was
+//! built rather than installed shows its bare identifier. ADR 0001 records
+//! what was run.
 //!
 //! # Why the old API on macOS
 //!
@@ -97,26 +95,14 @@ fn show(app_id: &str, on_click: impl Fn() + Send + 'static) -> Result<(), Box<dy
     )))?;
 
     let toast = ToastNotification::CreateToastNotification(&xml)?;
-    ToastNotificationManager::CreateToastNotifierWithId(&HSTRING::from(app_user_model_id(app_id)))?
-        .Show(&toast)?;
-    Ok(())
-}
 
-/// The identity Windows files the notification under.
-///
-/// Release builds use the bundle identifier, which the installer writes onto
-/// the Start Menu shortcut — without a shortcut carrying it, Windows drops the
-/// toast silently and `Show` still reports success. A `cargo run` has no such
-/// shortcut, so development borrows PowerShell's registered id purely so that
-/// a toast can be seen at all; it shows up attributed to PowerShell, and is
-/// not what ships.
-#[cfg(windows)]
-fn app_user_model_id(app_id: &str) -> String {
-    if cfg!(debug_assertions) {
-        r"{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe".to_owned()
-    } else {
-        app_id.to_owned()
-    }
+    // The identity Windows files the notification under, the same in every
+    // build. It does not have to resolve to a Start Menu shortcut for the
+    // reminder to be shown, kept, or clicked; where a shortcut carrying it
+    // exists — the one the installer places — the reminder wears Reflect's
+    // name and icon instead of this string.
+    ToastNotificationManager::CreateToastNotifierWithId(&HSTRING::from(app_id))?.Show(&toast)?;
+    Ok(())
 }
 
 #[cfg(target_os = "macos")]
