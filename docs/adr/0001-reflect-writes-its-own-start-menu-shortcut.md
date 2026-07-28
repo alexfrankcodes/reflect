@@ -1,8 +1,10 @@
 # Reflect writes its own Start Menu shortcut on Windows
 
-**Superseded on 28 July 2026.**
-The premise below did not survive measurement: the stub toast activator made no difference to anything Reflect depends on, and the reminder stayed in the notification centre on the strength of the application identity alone.
-What was run, and how far it reaches, is recorded under [What was actually measured](#what-was-actually-measured); the reasoning is kept as written so that the mistake is legible rather than quietly deleted.
+**Superseded on 28 July 2026 — Reflect does not write a Start Menu shortcut.**
+The premise below did not survive measurement.
+Neither the stub toast activator nor the shortcut carrying it is what keeps a reminder in the notification centre, and a reminder is delivered even with no Start Menu shortcut present at all; the shortcut supplies the name and the icon and nothing else.
+What was run, and how far it reaches, is under [What was actually measured](#what-was-actually-measured), and what replaces the decision is under [The decision that replaces it](#the-decision-that-replaces-it).
+The reasoning below is kept as written so that the mistake is legible rather than quietly deleted.
 
 ## The decision as it was made
 
@@ -66,24 +68,61 @@ The banner faded after its twenty-five seconds and the reminder stayed put; clic
 
 So the stub activator changes nothing that Reflect depends on.
 
-An aside, consistent with that: the notification centre also held fourteen reminders from earlier development runs, filed under Windows PowerShell's identity, at a time when Reflect had no Start Menu shortcut of its own at all.
+### Whether the shortcut is needed at all
+
+Those four runs answered the ticket's question and left a larger one standing: every one of them had a shortcut.
+Two further runs asked whether one is needed at all.
+
+The shortcut was removed entirely and the same release build fired a reminder at 11:51 and again at 11:59.
+The toast was not dropped.
+It appeared, it was still in the notification centre after its banner had faded, and clicking it there opened the notes window — but it arrived attributed to the raw string `com.alexfrankcodes.reflect`, with no icon.
+
+That identity had been registered on this machine by the earlier runs, which could have been what let it through.
+So a second probe used an identity Windows had never seen — no Start Menu shortcut, and no key under `HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings` — sent through the same `ToastNotificationManager` call `notify.rs` makes.
+It appeared too, likewise attributed to the raw string and likewise without an icon.
+
+Neither run is clean on both axes: the first had Reflect as the sender but a pre-registered identity, the second an unregistered identity but PowerShell as the sender.
+Taken together they are strong, and they are reported here as a pair rather than as one clean measurement.
+
+| Shortcut | Delivered | Name and icon | Persists after the banner | Click there opens the notes window |
+|---|---|---|---|---|
+| none at all | yes | the raw identifier, no icon | yes | yes |
+| identity only | yes | Reflect's own | yes | yes |
+| identity + stub activator | yes | Reflect's own | yes | yes |
+
+So a Start Menu shortcut is not what makes a reminder appear, and not what keeps it in the notification centre.
+It supplies the name and the icon, and nothing else.
+
+Two more claims in this repo fall with that.
+`notify.rs` says that without a shortcut carrying its identity "Windows drops the toast silently and `Show` still reports success", and `reminder.rs` repeats it as "Windows silently drops a toast whose app id it can't resolve".
+Both are false here, and with them the stated reason for handing debug builds PowerShell's identity — "purely so that a toast can be seen at all".
+A toast can be seen without it.
+
+An aside, consistent with all of this: the notification centre also held fourteen reminders from earlier development runs, filed under Windows PowerShell's identity, at a time when Reflect had no Start Menu shortcut of its own at all.
 Those persisted too — though PowerShell's own shortcut was not inspected, so this corroborates rather than proves.
 
 The finding is scoped to what was run, and the gaps matter as much as the result.
-Windows 11 build 26200, unpackaged, protocol activation, four runs on one machine.
+Windows 11 build 26200, unpackaged, protocol activation, on one machine: four runs with a shortcut, two without, and one probe under an identity Windows had never seen.
 No installer was run: the shortcut was written by hand, so the reach from here to an installed Reflect rests on the bundler writing the same `System.AppUserModel.ID` onto its own shortcut — which is what it is documented to do, and what the decision above already took for granted.
 The retired Microsoft text may well have been true of Windows 10, and nothing here says otherwise; it says only that Reflect cannot claim the activator as its reason today.
 
-## What this reopens
+## The decision that replaces it
 
-The reason recorded above for writing the shortcut is void.
+**Reflect does not write a Start Menu shortcut.**
+
+The reason recorded above is void twice over.
 The reminder survives its own banner without an activator, so the persistence problem this decision existed to solve is not a problem, and the NSIS-plugin difficulty it was manoeuvring around does not arise.
+And the shortcut is not what delivers the reminder either, so the app has no functional reason to write outside its own directories at all — which was this decision's stated cost, now paid for nothing.
 
-What does not follow is that the shortcut is pointless.
-A `cargo run` still has no shortcut and no identity of its own, which is why `app_user_model_id()` borrows PowerShell's and why development reminders arrive wearing another app's name — user stories 21 and 22 are about exactly that, and nothing measured here touches them.
-That case was deliberately set aside: these runs used a release build precisely so that the identity under test was Reflect's own rather than the borrowed one.
-So the argument that survives is both smaller than the one this decision was made on and the one the experiment did not examine.
+What is genuinely lost is the name and the icon, and only for someone running a Reflect they built rather than installed.
+Their reminder says `com.alexfrankcodes.reflect` instead of Reflect, and carries no icon.
+That is a real cost and it is accepted: it falls on people who cloned a repository and ran `cargo build`, it is legible rather than misleading, and it is not worth an app that edits the user's Start Menu at every startup and an uninstaller that has to clean up after it.
 
-This decision is therefore reopened rather than replaced, and no successor is recorded here.
-Issue #25 asks for a shortcut carrying both the application identity and the stub activator; the activator half of that has lost the justification written above, and the identity half now stands on different and narrower ground.
-What Reflect should do instead is a new decision, and it wants evidence covering the developer build — the case this experiment set aside and the only one still in play.
+One simplification survives the reversal, on better grounds than the ones recorded above.
+`app_user_model_id()` hands debug builds Windows PowerShell's identity, and its stated reason — that a toast could not otherwise be seen — is false.
+The branch does nothing but attribute development reminders to another application, so it goes whether or not a shortcut is ever written.
+That, and correcting the comments this experiment falsified, is now the whole of issue #25.
+
+This rests on one thing not measured: that Tauri's bundler writes the identity onto the shortcut it installs, so that an installed Reflect still shows its own name and icon.
+No installer has ever been built for this project.
+Issue #26 builds the first one and already asks that a reminder from the installed build arrive under Reflect's own name and icon — if that fails, the bundler does not write the identity, this decision is wrong about installed users too, and writing the shortcut comes back on evidence rather than on assumption.
