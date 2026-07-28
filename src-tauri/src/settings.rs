@@ -23,6 +23,10 @@ pub struct Page {
     /// settings file already holds.
     daily_time: String,
     show_prompts: bool,
+    /// `None` where the platform doesn't start apps at login, which is how the
+    /// page knows to leave the row out altogether rather than draw a switch
+    /// that moves nothing. See `autostart.rs`.
+    start_at_login: Option<bool>,
 }
 
 /// [`open`], for the tray menu, which has nowhere useful to report a failure to.
@@ -41,11 +45,20 @@ pub fn open<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
 
     crate::window::builder(app, WINDOW_LABEL, "settings.html")
         .title("Settings")
-        // Two rows and a line of text; there is nothing here that reflows, so
+        // The rows and a line of text; there is nothing here that reflows, so
         // a resize would only ever spread it thinner. The height is the
         // content's, with room left under the rows for the line at the foot to
-        // sit apart from what it describes.
-        .inner_size(400.0, 178.0)
+        // sit apart from what it describes — and one row shorter where the
+        // start-at-login row isn't drawn, rather than leaving a gap where it
+        // would have been.
+        .inner_size(
+            400.0,
+            if crate::autostart::SUPPORTED {
+                218.0
+            } else {
+                178.0
+            },
+        )
         .resizable(false)
         .build()?;
 
@@ -64,7 +77,7 @@ pub fn settings_page(preferences: State<'_, Preferences>) -> Result<Page, String
     Ok(page(&settings))
 }
 
-/// Put `daily_time` and `show_prompts` into force.
+/// Put `daily_time`, `show_prompts` and `start_at_login` into force.
 ///
 /// Returning an error leaves the settings as they were and says so on the page,
 /// which is the only honest outcome for a change that didn't take: a Settings
@@ -75,27 +88,40 @@ pub fn settings_page(preferences: State<'_, Preferences>) -> Result<Page, String
 /// moment the user closes Settings. A correction that lands and a write that
 /// then fails costs at most a single day's nudge, and this codebase already
 /// holds that a missed reminder beats two almost back to back.
+///
+/// The OS registration is changed before the settings are written for the same
+/// reason in the other direction: a refusal from the OS leaves both it and the
+/// file as they were, and a write that fails after it succeeded is put right at
+/// the next startup, which reconciles the OS to whatever the file says.
+///
+/// `start_at_login` is `None` from a page that never offered the row, which is
+/// every platform but Windows; the stored preference is then left alone rather
+/// than overwritten with a default the user never chose.
 #[tauri::command]
 pub fn settings_save(
+    app: AppHandle,
     preferences: State<'_, Preferences>,
     daily_time: String,
     show_prompts: bool,
+    start_at_login: Option<bool>,
 ) -> Result<Page, String> {
     // Refused rather than quietly rounded to a default — standing 9pm in place
     // of something Reflect couldn't read is how a user's chosen time changes
     // without anything telling them.
     let daily_time = parse_daily_time(&daily_time)
         .ok_or_else(|| format!("{daily_time:?} isn't a time of day Reflect understands."))?;
-    let chosen = Settings {
-        daily_time,
-        show_prompts,
-    };
 
     let files = preferences.lock();
     let in_force = files
         .settings
         .load()
         .map_err(|err| format!("couldn't read your settings: {err}"))?;
+
+    let chosen = Settings {
+        daily_time,
+        show_prompts,
+        start_at_login: start_at_login.unwrap_or(in_force.start_at_login),
+    };
 
     // A time that hasn't moved leaves the record alone, which is the whole of
     // why both times are handed over rather than only the new one.
@@ -107,6 +133,9 @@ pub fn settings_save(
             Local::now().naive_local(),
         )
         .map_err(|err| format!("couldn't reschedule your reminder: {err}"))?;
+
+    crate::autostart::apply(&app, chosen.start_at_login)
+        .map_err(|err| format!("couldn't set whether Reflect starts at login: {err}"))?;
 
     files
         .settings
@@ -122,5 +151,6 @@ fn page(settings: &Settings) -> Page {
     Page {
         daily_time: format_daily_time(settings.daily_time),
         show_prompts: settings.show_prompts,
+        start_at_login: crate::autostart::SUPPORTED.then_some(settings.start_at_login),
     }
 }

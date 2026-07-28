@@ -42,6 +42,11 @@ windows = { version = "0.62", features = [
   "Data_Xml_Dom",
   "UI_Notifications",
 ] }
+# Windows alone, though the plugin handles macOS too: this release is Windows
+# only, and the macOS build has never been run by anyone. Registering a
+# LaunchAgent from a binary nobody has started is not a change worth making
+# blind. See `autostart.rs`.
+tauri-plugin-autostart = "2.5.1"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 mac-notification-sys = "0.6"

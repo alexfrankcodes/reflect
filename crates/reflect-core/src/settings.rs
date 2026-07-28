@@ -17,6 +17,12 @@ pub struct Settings {
     /// Whether the notes page carries a writing prompt at all. Off means no
     /// prompt line, not a blank one — Reflect as a plain journal.
     pub show_prompts: bool,
+    /// Whether Reflect starts itself when the user logs in.
+    ///
+    /// A tray app has to already be running for a reminder to be due, so with
+    /// this off a reboot ends the habit until the user remembers to launch the
+    /// app whose whole point is that they shouldn't have to.
+    pub start_at_login: bool,
 }
 
 impl Default for Settings {
@@ -25,6 +31,7 @@ impl Default for Settings {
         Self {
             daily_time: DEFAULT_DAILY_TIME,
             show_prompts: true,
+            start_at_login: true,
         }
     }
 }
@@ -38,6 +45,7 @@ pub struct SettingsFile {
 
 const DAILY_TIME_KEY: &str = "daily-time";
 const SHOW_PROMPTS_KEY: &str = "show-prompts";
+const START_AT_LOGIN_KEY: &str = "start-at-login";
 
 /// How a time is written. Seconds are dropped: Reflect's reminder is a time of
 /// day someone chose, not an instant.
@@ -69,9 +77,10 @@ impl SettingsFile {
         std::fs::write(
             &self.path,
             format!(
-                "{DAILY_TIME_KEY} = {}\n{SHOW_PROMPTS_KEY} = {}\n",
+                "{DAILY_TIME_KEY} = {}\n{SHOW_PROMPTS_KEY} = {}\n{START_AT_LOGIN_KEY} = {}\n",
                 format_daily_time(settings.daily_time),
-                if settings.show_prompts { "on" } else { "off" },
+                format_switch(settings.show_prompts),
+                format_switch(settings.start_at_login),
             ),
         )
     }
@@ -124,11 +133,26 @@ fn parse(text: &str) -> Settings {
                     settings.show_prompts = on;
                 }
             }
+            START_AT_LOGIN_KEY => {
+                if let Some(on) = parse_switch(value) {
+                    settings.start_at_login = on;
+                }
+            }
             _ => {}
         }
     }
 
     settings
+}
+
+/// How a switch is written, and the counterpart to [`parse_switch`] — beside it
+/// so that the two spellings of a switch can't drift apart.
+fn format_switch(on: bool) -> &'static str {
+    if on {
+        "on"
+    } else {
+        "off"
+    }
 }
 
 fn parse_switch(text: &str) -> Option<bool> {
@@ -164,12 +188,27 @@ mod tests {
     }
 
     #[test]
+    fn a_first_run_starts_reflect_when_the_user_logs_in() {
+        // On by default: the alternative is an app that has quietly stopped
+        // doing its one job after a reboot, which the user will read as Reflect
+        // being broken rather than as Reflect never having been started.
+        let home = tempfile::tempdir().unwrap();
+
+        let settings = SettingsFile::at(home.path().join("settings.txt"))
+            .load()
+            .unwrap();
+
+        assert!(settings.start_at_login);
+    }
+
+    #[test]
     fn what_the_user_set_is_what_they_get_back() {
         let home = tempfile::tempdir().unwrap();
         let file = SettingsFile::at(home.path().join("settings.txt"));
         let chosen = Settings {
             daily_time: time(7, 30),
             show_prompts: false,
+            start_at_login: false,
         };
 
         file.save(&chosen).unwrap();
@@ -186,12 +225,13 @@ mod tests {
             .save(&Settings {
                 daily_time: time(7, 30),
                 show_prompts: false,
+                start_at_login: true,
             })
             .unwrap();
 
         assert_eq!(
             std::fs::read_to_string(&path).unwrap(),
-            "daily-time = 07:30\nshow-prompts = off\n"
+            "daily-time = 07:30\nshow-prompts = off\nstart-at-login = on\n"
         );
     }
 
@@ -215,6 +255,39 @@ mod tests {
         let settings = SettingsFile::at(&path).load().unwrap();
 
         assert_eq!(settings.daily_time, DEFAULT_DAILY_TIME);
+        assert!(!settings.show_prompts);
+    }
+
+    #[test]
+    fn a_settings_file_from_before_this_setting_existed_still_reads() {
+        // Upgrading mustn't cost the user the time they chose. The file an
+        // older Reflect wrote has no start-at-login line at all, and that is
+        // an absent setting rather than a broken file.
+        let home = tempfile::tempdir().unwrap();
+        let path = home.path().join("settings.txt");
+        std::fs::write(&path, "daily-time = 07:30\nshow-prompts = off\n").unwrap();
+
+        let settings = SettingsFile::at(&path).load().unwrap();
+
+        assert_eq!(settings.daily_time, time(7, 30));
+        assert!(!settings.show_prompts);
+        assert!(settings.start_at_login);
+    }
+
+    #[test]
+    fn an_unreadable_start_at_login_costs_only_itself() {
+        let home = tempfile::tempdir().unwrap();
+        let path = home.path().join("settings.txt");
+        std::fs::write(
+            &path,
+            "daily-time = 07:30\nshow-prompts = off\nstart-at-login = perhaps\n",
+        )
+        .unwrap();
+
+        let settings = SettingsFile::at(&path).load().unwrap();
+
+        assert!(settings.start_at_login);
+        assert_eq!(settings.daily_time, time(7, 30));
         assert!(!settings.show_prompts);
     }
 
