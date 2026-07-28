@@ -3,11 +3,12 @@
 //! The menu's shape lives in `reflect_core::tray_menu`; this module is the
 //! adapter that turns it into real OS menu items and back again.
 
+use reflect_core::entries::Entries;
 use reflect_core::tray_menu::TrayAction;
 use tauri::{
     menu::{IsMenuItem, Menu, MenuItem},
     tray::TrayIconBuilder,
-    AppHandle, Runtime,
+    AppHandle, Manager, Runtime,
 };
 
 pub fn create<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
@@ -50,9 +51,34 @@ fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, event: tauri::menu::MenuEve
                 app.exit(0);
             }
         }
-        // Wired up by a later ticket: Reveal Entries Folder (#18). Selecting
-        // it is a no-op for now.
-        Some(TrayAction::RevealEntriesFolder) => {}
+        Some(TrayAction::RevealEntriesFolder) => reveal_entries_folder(app),
         None => {}
+    }
+}
+
+/// Show the user their entries folder in Finder or Explorer.
+///
+/// Reflect has no export feature and doesn't need one: the entries are plain
+/// files in a folder the OS already knows how to open, copy, and back up. This
+/// is the whole of handing them over.
+fn reveal_entries_folder<R: Runtime>(app: &AppHandle<R>) {
+    let entries = app.state::<Entries>();
+
+    // The folder is made rather than assumed. Nothing creates it until the
+    // first entry is saved, and someone who wants to see where their writing
+    // will land before they've written any is asking a fair question — an
+    // empty folder answers it, where a file browser refusing a path it can't
+    // find does not.
+    let revealed = entries
+        .create_dir()
+        .map_err(|err| err.to_string())
+        .and_then(|dir| {
+            tauri_plugin_opener::open_path(dir, None::<&str>).map_err(|err| err.to_string())
+        });
+
+    // Nowhere useful to report this: the tray menu closes on click, and there
+    // is no window of ours to put the news in.
+    if let Err(err) = revealed {
+        eprintln!("could not open the entries folder: {err}");
     }
 }

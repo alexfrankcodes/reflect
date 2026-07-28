@@ -1,7 +1,7 @@
 //! Reflect's storage: one plain-text file per calendar day.
 
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use chrono::NaiveDate;
 
@@ -67,8 +67,9 @@ impl Entries {
     /// Browse window lists them in, and the only order it ever wants them in.
     pub fn dates(&self) -> io::Result<Vec<NaiveDate>> {
         // A folder that isn't there is the same answer as one holding nothing:
-        // it isn't made until the first save, so on a fresh install Browse is
-        // an empty list rather than a complaint about a missing folder.
+        // nothing makes it until the user asks for it, by saving a first entry
+        // or by opening it from the tray, so Browse on a fresh install is an
+        // empty list rather than a complaint about a missing folder.
         let listing = match std::fs::read_dir(&self.dir) {
             Ok(listing) => listing,
             Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
@@ -87,6 +88,18 @@ impl Entries {
 
         dates.sort_unstable_by(|a, b| b.cmp(a));
         Ok(dates)
+    }
+
+    /// The folder itself, made if it isn't there yet.
+    ///
+    /// Somewhere to point the OS's file browser at. Every other call here
+    /// treats a missing folder as a folder with nothing in it, because until
+    /// the first save there is nothing to keep — but a folder that isn't
+    /// there is one "Reveal Entries Folder" can't open, so asking for it is
+    /// what brings it into being.
+    pub fn create_dir(&self) -> io::Result<&Path> {
+        std::fs::create_dir_all(&self.dir)?;
+        Ok(&self.dir)
     }
 
     fn path_for(&self, date: NaiveDate) -> PathBuf {
@@ -127,8 +140,6 @@ fn entry_date(file_name: &str) -> Option<NaiveDate> {
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
-
     use super::*;
     use crate::day;
 
@@ -249,6 +260,32 @@ mod tests {
         std::fs::write(dir.join("2026-07-21.txt"), "").unwrap();
 
         assert_eq!(entries.dates().unwrap(), vec![day(2026, 7, 24)]);
+    }
+
+    #[test]
+    fn the_folder_is_there_to_be_opened_before_a_word_has_been_written() {
+        // "Reveal Entries Folder" has to hand the OS a folder that exists, and
+        // on a fresh install nothing has been saved, so nothing has made one.
+        let home = tempfile::tempdir().unwrap();
+        let dir = home.path().join("entries");
+        let entries = Entries::in_dir(&dir);
+
+        assert_eq!(entries.create_dir().unwrap(), dir);
+        assert!(dir.is_dir());
+    }
+
+    #[test]
+    fn opening_the_folder_leaves_everything_already_written_in_it() {
+        let home = tempfile::tempdir().unwrap();
+        let entries = Entries::in_dir(home.path().join("entries"));
+        entries.save(day(2026, 7, 24), "Still here.").unwrap();
+
+        entries.create_dir().unwrap();
+
+        assert_eq!(
+            entries.load(day(2026, 7, 24)).unwrap().as_deref(),
+            Some("Still here.")
+        );
     }
 
     #[test]
