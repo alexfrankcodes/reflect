@@ -50,7 +50,7 @@ impl Entries {
             return Ok(Saved::Unchanged);
         }
 
-        std::fs::create_dir_all(&self.dir)?;
+        self.ensure_dir()?;
         std::fs::write(&path, file_text)?;
         Ok(Saved::Wrote)
     }
@@ -92,12 +92,11 @@ impl Entries {
 
     /// The folder itself, made if it isn't there yet.
     ///
-    /// Somewhere to point the OS's file browser at. Every other call here
-    /// treats a missing folder as a folder with nothing in it, because until
-    /// the first save there is nothing to keep — but a folder that isn't
-    /// there is one "Reveal Entries Folder" can't open, so asking for it is
-    /// what brings it into being.
-    pub fn create_dir(&self) -> io::Result<&Path> {
+    /// Reading treats a missing folder as a folder with nothing in it, because
+    /// until the first save there is nothing to keep. Writing to it, or
+    /// pointing the OS's file browser at it, needs it to be somewhere real —
+    /// so asking for it is what brings it into being.
+    pub fn ensure_dir(&self) -> io::Result<&Path> {
         std::fs::create_dir_all(&self.dir)?;
         Ok(&self.dir)
     }
@@ -270,7 +269,7 @@ mod tests {
         let dir = home.path().join("entries");
         let entries = Entries::in_dir(&dir);
 
-        assert_eq!(entries.create_dir().unwrap(), dir);
+        assert_eq!(entries.ensure_dir().unwrap(), dir);
         assert!(dir.is_dir());
     }
 
@@ -280,7 +279,7 @@ mod tests {
         let entries = Entries::in_dir(home.path().join("entries"));
         entries.save(day(2026, 7, 24), "Still here.").unwrap();
 
-        entries.create_dir().unwrap();
+        entries.ensure_dir().unwrap();
 
         assert_eq!(
             entries.load(day(2026, 7, 24)).unwrap().as_deref(),

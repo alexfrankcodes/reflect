@@ -27,9 +27,11 @@ tauri = { version = "2", features = ["tray-icon"] }
 # rather than start a second one. See `notify.rs` for why that is a deep link.
 tauri-plugin-deep-link = "2"
 # Used for its free `open_path` alone — never registered as a plugin, because
-# nothing in the webview opens anything; only the tray does, from Rust. That
-# one function is what knows a folder wants Explorer's `EXPLORE` verb rather
-# than a bare `explorer.exe` whose exit code lies about having worked.
+# nothing in the webview opens anything; only the tray does, from Rust. Both
+# platforms at once, which is why this isn't under a `cfg`: it reaches Finder
+# through `/usr/bin/open`, and Explorer through the shell's `EXPLORE` verb
+# rather than a bare `explorer.exe`, whose exit code says it failed when it
+# didn't.
 tauri-plugin-opener = "2"
 tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 

@@ -64,21 +64,20 @@ fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, event: tauri::menu::MenuEve
 fn reveal_entries_folder<R: Runtime>(app: &AppHandle<R>) {
     let entries = app.state::<Entries>();
 
-    // The folder is made rather than assumed. Nothing creates it until the
-    // first entry is saved, and someone who wants to see where their writing
-    // will land before they've written any is asking a fair question — an
-    // empty folder answers it, where a file browser refusing a path it can't
-    // find does not.
-    let revealed = entries
-        .create_dir()
-        .map_err(|err| err.to_string())
-        .and_then(|dir| {
-            tauri_plugin_opener::open_path(dir, None::<&str>).map_err(|err| err.to_string())
-        });
+    // Asked for rather than assumed: someone who wants to see where their
+    // writing will land before they've written any is asking a fair question,
+    // and an empty folder answers it.
+    let dir = match entries.ensure_dir() {
+        Ok(dir) => dir,
+        Err(err) => {
+            // Neither failure has anywhere useful to go: the tray menu closes
+            // on click, and there is no window of ours to put the news in.
+            eprintln!("could not create the entries folder: {err}");
+            return;
+        }
+    };
 
-    // Nowhere useful to report this: the tray menu closes on click, and there
-    // is no window of ours to put the news in.
-    if let Err(err) = revealed {
+    if let Err(err) = tauri_plugin_opener::open_path(dir, None::<&str>) {
         eprintln!("could not open the entries folder: {err}");
     }
 }
