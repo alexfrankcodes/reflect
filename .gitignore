@@ -4,6 +4,12 @@
 # Tauri: capability schemas are generated at build time
 /src-tauri/gen/schemas/
 
+# `cargo tauri icon` writes a set per platform it knows about, including two
+# Reflect will never build for. Ignored rather than deleted each time, so
+# regenerating the icon doesn't offer them up again.
+/src-tauri/icons/android/
+/src-tauri/icons/ios/
+
 # Research kept local rather than published with the repo
 /docs/research/windows-toast-identity.md
 
