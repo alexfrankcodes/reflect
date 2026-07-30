@@ -5,6 +5,8 @@ const { invoke } = window.__TAURI__.core;
 
 const dailyTime = document.getElementById("daily-time");
 const showPrompts = document.getElementById("show-prompts");
+const startAtLogin = document.getElementById("start-at-login");
+const startAtLoginRow = document.getElementById("start-at-login-row");
 const note = document.getElementById("note");
 
 async function openSettings() {
@@ -16,6 +18,7 @@ async function openSettings() {
     trouble(err);
     dailyTime.disabled = true;
     showPrompts.disabled = true;
+    startAtLogin.disabled = true;
     return;
   }
 
@@ -24,6 +27,7 @@ async function openSettings() {
   // into force and reschedule the reminder on the way past.
   dailyTime.addEventListener("change", apply);
   showPrompts.addEventListener("change", apply);
+  startAtLogin.addEventListener("change", apply);
 }
 
 async function apply() {
@@ -35,6 +39,9 @@ async function apply() {
       await invoke("settings_save", {
         dailyTime: dailyTime.value,
         showPrompts: showPrompts.checked,
+        // Sent even where the row isn't shown; Reflect ignores it on a platform
+        // that never offered it rather than trusting a box nobody could see.
+        startAtLogin: startAtLogin.checked,
       }),
     );
   } catch (err) {
@@ -49,6 +56,10 @@ async function apply() {
 function show(settings) {
   dailyTime.value = settings.dailyTime;
   showPrompts.checked = settings.showPrompts;
+  // `null` is Reflect saying this platform doesn't start apps at login at all,
+  // which is different from saying it's turned off.
+  startAtLoginRow.hidden = settings.startAtLogin === null;
+  if (!startAtLoginRow.hidden) startAtLogin.checked = settings.startAtLogin;
   note.textContent = `Reflect will nudge you at ${inWords(settings.dailyTime)}, every day.`;
   note.classList.remove("trouble");
 }

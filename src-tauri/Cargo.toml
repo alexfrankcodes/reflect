@@ -42,6 +42,14 @@ windows = { version = "0.62", features = [
   "Data_Xml_Dom",
   "UI_Notifications",
 ] }
+# Windows alone, though the plugin handles macOS too — see ADR 0002 for why
+# this release leaves macOS be, and `autostart.rs` for what follows from it.
+tauri-plugin-autostart = "2.5.1"
+# To ask what Windows currently holds for Reflect at startup, which the plugin
+# above can't answer honestly. Its own `is_enabled` conflates several things;
+# `autostart.rs` says which. Already in the tree underneath that plugin, so
+# this pins the same version rather than pulling in a second copy.
+winreg = "0.10"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 mac-notification-sys = "0.6"

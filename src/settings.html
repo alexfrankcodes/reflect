@@ -24,6 +24,16 @@
       <input type="checkbox" id="show-prompts" />
     </label>
 
+    <!--
+      Hidden until Reflect says this platform starts apps at login, which is
+      Windows alone for now. A switch that silently moves nothing is worse than
+      no switch, so the row stays out rather than being drawn and disabled.
+    -->
+    <label class="setting" id="start-at-login-row" hidden>
+      <span>Start Reflect at login</span>
+      <input type="checkbox" id="start-at-login" />
+    </label>
+
     <!-- What Reflect is actually going to do, in its own words. There is no
          Save button to confirm a change, so this line is the confirmation. -->
     <p class="note" id="note"></p>

@@ -1,6 +1,7 @@
 // Prevents an extra console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod autostart;
 mod browse;
 mod notes;
 mod notify;
@@ -13,7 +14,7 @@ mod window;
 use tauri::Manager;
 
 fn main() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         // Registered first, as the plugin requires. A tray app must never run
         // twice — and the second launch this catches is usually not a user
         // starting Reflect again but Windows opening the `reflect://` link of
@@ -21,7 +22,19 @@ fn main() {
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             notes::open_or_report(app);
         }))
-        .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_deep_link::init());
+
+    // Windows only, and shadowed rather than chained because of it. See
+    // `autostart.rs` for why this release leaves macOS alone.
+    #[cfg(windows)]
+    let builder = builder.plugin(tauri_plugin_autostart::init(
+        tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+        // No arguments: Reflect opens no window at startup, so there is nothing
+        // to tell it about being started by the OS rather than by the user.
+        None,
+    ));
+
+    builder
         .invoke_handler(tauri::generate_handler![
             notes::notes_page,
             notes::notes_close,
@@ -55,6 +68,23 @@ fn main() {
                 data_dir.join("settings.txt"),
                 data_dir.join("last-reminder.txt"),
             ));
+
+            // The OS is brought into line with the preference at every startup,
+            // not only when the user changes it. An upgrade, a settings file
+            // carried to another machine, or someone who cleared their startup
+            // entries by hand all leave the two disagreeing, and the file is
+            // the one that holds what the user actually asked for.
+            match app
+                .state::<preferences::Preferences>()
+                .lock()
+                .settings
+                .load()
+            {
+                Ok(settings) => autostart::apply_or_report(app.handle(), settings.start_at_login),
+                Err(err) => {
+                    eprintln!("could not read whether Reflect should start at login: {err}");
+                }
+            }
 
             use tauri_plugin_deep_link::DeepLinkExt;
 
