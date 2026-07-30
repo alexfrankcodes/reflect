@@ -4,6 +4,9 @@
 # Tauri: capability schemas are generated at build time
 /src-tauri/gen/schemas/
 
+# Research kept local rather than published with the repo
+/docs/research/windows-toast-identity.md
+
 # OS
 .DS_Store
 Thumbs.db
