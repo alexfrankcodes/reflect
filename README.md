@@ -142,8 +142,7 @@ cargo install tauri-cli
 cargo tauri build          # writes to target\release\bundle\
 ```
 
-`bundle.targets` in `tauri.conf.json` is still `"all"`, so that writes an MSI alongside the NSIS installer.
-Only the NSIS one is released.
+That writes the same unsigned NSIS installer a release ships.
 
 One difference worth knowing about a Reflect you built rather than installed: its reminder arrives attributed to the raw string `com.alexfrankcodes.reflect`, with no icon.
 The name and icon come from the Start Menu shortcut the installer writes, and Reflect deliberately does not write one itself.
